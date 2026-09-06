@@ -31,3 +31,4 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - プレビュー画面の要素特定は `data-*` 属性（`paint-canvas`、`command-json`、`shape-list`、`preview-status`、`preview-error`）を使う。表示文言に依存しない。
 - 実ブラウザ確認は一時プロファイルのヘッドレスChromeで行う（`--user-data-dir` に一時ディレクトリ、`--screenshot` / `--dump-dom`）。ツール呼び出しをまたいで常駐させたいサーバは、バックグラウンドジョブではなく単一コマンド内で `Start-Process` 起動・検証・停止まで行う。
 - コード受領手段としてSVGを用意する。`src/render-svg.ts` はPNG描画と同一セマンティクスの決定的テキストを返し、CLIの `--svg` とプレビューの `/svg`（異常時は400番台JSON）で配信する。新規依存は持たせない。
+- 人物や髪などの有機的な形は、太いstrokeの一定幅pathだとチューブ状になる。塗りつぶしpathで輪郭を取り、曲線はBezierを折れ線近似する。顔を隠す部品（ヘッドホン等）は顔の正面ではなく横に置く。

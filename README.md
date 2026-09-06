@@ -73,6 +73,7 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 - `src/preview-page.ts` - プレビュー画面のHTML生成（Canvas描画・命令表示・約500ms取得）
 - `tests/` - `bun test` による検証・退行テスト
 - `examples/hello.json` - 動作確認用サンプル
+- `examples/miku.json` / `examples/miku-full.json` - 描画ループの作例（バストアップ / フルサイズの初音ミク）
 
 品質確認:
 

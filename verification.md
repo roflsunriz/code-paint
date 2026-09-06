@@ -15,11 +15,13 @@ bun run test
 - `type-check`: `tsc --noEmit` による厳密な型検査。
 - `build`: `bun build` によるバンドル確認。
 - `test`: `bun test`。検証・退行の観点は次の通り。
-  - DSL検証: 正常系（空shapes・3種図形・pathとopacity）、異常系（version不一致、色形式、未知kind、負寸法rect、不足点path、範囲外opacity）。単発検証 `parsePaintShape` の正常・異常系。
-  - 描画: PNGシグネチャ確認、背景色と矩形のピクセル一致（退行防止）、pathの線のピクセル一致、opacityの混色。
-  - SVG: 3種図形の写像・決定性（同一入力で同一文字列）・実サンプルとの対応、pathとopacityの写像、CLIの `--svg` 出力（省略時はPNGのみ）、サーバ `/svg` の正常・異常系。
-  - プレビュー: ペイロード生成（正常・壊れたJSON・検証NG・ハッシュ変化）、サーバ経路（`/` の画面目印、`/document` の正常・不存在入力）、画面HTMLの3種描画分岐と自動取得。
-  - 追記: `POST /shapes` の単発・複数・異常系（400で既存不変）、`DELETE /shapes` の全消去。
+  - DSL検証: 正常系（空shapes・3種図形・pathとopacity）、異常系（version不一致、v1の移行拒否、色形式、未知kind、負寸法rect、不足点path、範囲外opacity、フェーズなし、作業順逆行、現在フェーズ超過）。単発検証 `parsePaintShape` の正常・異常系。移行 `migrateV1ToV2Document` の正常・異常系。
+  - フェーズ: 一段進行と飛ばし拒否、表示順の層固定（背景を最背面）。
+  - 描画: PNGシグネチャ確認、背景色と矩形のピクセル一致（退行防止）、pathの線のピクセル一致、opacityの混色、背景層の最背面合成。
+  - SVG: 3種図形の写像・決定性（同一入力で同一文字列）・実サンプルとの対応、pathとopacityの写像、背景層の最背面出力、CLIの `--svg` 出力（省略時はPNGのみ）、サーバ `/svg` の正常・異常系。
+  - プレビュー: ペイロード生成（正常・壊れたJSON・検証NG・ハッシュ変化）、サーバ経路（`/` の画面目印、`/document` の正常・不存在入力）、画面HTMLの3種描画分岐と自動取得とフェーズ表示（`phase-badge`・`phase-progress`・`POST /phase`・`POST /bucket`）。
+  - 追記: `POST /shapes` の単発・複数・異常系（400で既存不変）・別フェーズ拒否、`POST /phase` の一段進行と飛ばし拒否、`POST /bucket` のbase相のみ展開と線画相の拒否、`DELETE /shapes` の全消去と線画への復帰。
+  - バケツ塗り: 全面展開、線画囲み内の限定塗り、線画相の拒否、同色・範囲外の拒否、決定性（同一入力で同一出力）。
   - リファレンス: `/reference` の未設定404・設定時200と画像content-type、画面の表示目印。
   - 命令欄: 固定高スクロール・最新200件表示・自動スクロール（`scrollTop`/`scrollHeight`）の含有。
 
@@ -46,7 +48,8 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 
 - `http://localhost:8901/` でキャンバス描画（矩形・円・線）と受け取った命令（図形一覧・JSON原文）とリファレンス枠が同時に表示される。
 - 入力JSONを保存するとハッシュが変わり、約500ms間隔の取得で画面が自動更新される。
-- `POST /shapes` で1件追記すると図形件数が増え、画面の命令欄が末尾へ自動スクロールする。不正な図形は400番台JSONで拒否される。
+- `POST /shapes` で1件追記すると図形件数が増え、画面の命令欄が末尾へ自動スクロールする。不正な図形・現在のフェーズと違う図形は400番台JSONで拒否される。
+- `POST /phase {"phase": "shadow"}` で一段ずつ進み、飛ばし・戻りは400番台JSONで拒否される。`POST /bucket {"x": 1, "y": 1, "fill": "#ff0000"}` はバケツ塗り相でのみrect束へ展開される。
 - `--reference` 付き起動では見本画像が表示され、`curl.exe http://localhost:8901/reference -OutFile out/reference.png` で取得できる。未設定時は404の案内JSONになる。
 - 命令欄（図形一覧・JSON）は固定高さでスクロールし、図形一覧は最新200件のみ表示される。
 - 不正なJSONや検証NGの入力でもサーバが落ちず、画面にエラーが表示される。

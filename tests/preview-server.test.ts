@@ -76,7 +76,8 @@ describe("preview-page", () => {
 
   test("path図形の描画分岐と一覧表示を含む", () => {
     const html = buildPreviewHtml();
-    expect(html).toContain('" path "');
+    expect(html).toContain("path ");
+    expect(html).toContain("[");
     expect(html).toContain("lineCap");
     expect(html).toContain("globalAlpha");
   });

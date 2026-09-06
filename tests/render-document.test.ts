@@ -21,8 +21,9 @@ async function readPixel(
 describe("renderDocumentToPng", () => {
   test("PNGシグネチャを持つバイト列を返す", () => {
     const document: PaintDocument = {
-      version: 1,
+      version: 2,
       canvas: { width: 16, height: 16, background: "#ffffff" },
+      phase: "lineart",
       shapes: [],
     };
     const png = renderDocumentToPng(document);
@@ -31,9 +32,10 @@ describe("renderDocumentToPng", () => {
 
   test("背景色と矩形がピクセルに反映される（退行防止）", async () => {
     const document: PaintDocument = {
-      version: 1,
+      version: 2,
       canvas: { width: 32, height: 32, background: "#ffffff" },
-      shapes: [{ kind: "rect", x: 0, y: 0, width: 16, height: 32, fill: "#ff0000" }],
+      phase: "base",
+      shapes: [{ kind: "rect", phase: "base", x: 0, y: 0, width: 16, height: 32, fill: "#ff0000" }],
     };
     const png = renderDocumentToPng(document);
     expect(await readPixel(png, 4, 16)).toEqual([255, 0, 0, 255]);
@@ -42,11 +44,13 @@ describe("renderDocumentToPng", () => {
 
   test("pathの線がピクセルに反映される", async () => {
     const document: PaintDocument = {
-      version: 1,
+      version: 2,
       canvas: { width: 32, height: 32, background: "#ffffff" },
+      phase: "lineart",
       shapes: [
         {
           kind: "path",
+          phase: "lineart",
           points: [
             { x: 2, y: 16 },
             { x: 30, y: 16 },
@@ -63,9 +67,21 @@ describe("renderDocumentToPng", () => {
 
   test("opacityは下地と混ざった色になる", async () => {
     const document: PaintDocument = {
-      version: 1,
+      version: 2,
       canvas: { width: 32, height: 32, background: "#ffffff" },
-      shapes: [{ kind: "rect", x: 0, y: 0, width: 32, height: 32, fill: "#ff0000", opacity: 0.5 }],
+      phase: "base",
+      shapes: [
+        {
+          kind: "rect",
+          phase: "base",
+          x: 0,
+          y: 0,
+          width: 32,
+          height: 32,
+          fill: "#ff0000",
+          opacity: 0.5,
+        },
+      ],
     };
     const png = renderDocumentToPng(document);
     const [r, g, b, a] = await readPixel(png, 16, 16);
@@ -75,5 +91,20 @@ describe("renderDocumentToPng", () => {
     expect(g).toBeLessThan(160);
     expect(b).toBeGreaterThan(100);
     expect(b).toBeLessThan(160);
+  });
+
+  test("背景フェーズは最後に作業しても最背面に描画される", async () => {
+    const document: PaintDocument = {
+      version: 2,
+      canvas: { width: 32, height: 32, background: "#ffffff" },
+      phase: "background",
+      shapes: [
+        { kind: "rect", phase: "base", x: 4, y: 4, width: 8, height: 8, fill: "#ff0000" },
+        { kind: "rect", phase: "background", x: 0, y: 0, width: 32, height: 32, fill: "#0000ff" },
+      ],
+    };
+    const png = renderDocumentToPng(document);
+    expect(await readPixel(png, 6, 6)).toEqual([255, 0, 0, 255]);
+    expect(await readPixel(png, 24, 24)).toEqual([0, 0, 255, 255]);
   });
 });

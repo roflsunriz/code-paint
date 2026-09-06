@@ -4,6 +4,8 @@ import { buildPreviewHtml } from "./preview-page.ts";
 import { renderDocumentToSvg } from "./render-svg.ts";
 import { MAX_SHAPES, type PaintDocument, type PaintShape } from "./paint-document.ts";
 import { PaintValidationError, parsePaintShape } from "./validate-document.ts";
+import { PAINT_PHASE_LABELS_JA, nextPaintPhase, parsePaintPhase } from "./paint-phase.ts";
+import { bucketFillToRects } from "./bucket-fill.ts";
 
 export interface PreviewServerOptions {
   inputPath: string;
@@ -142,6 +144,18 @@ async function appendShapes(inputPath: string, body: unknown): Promise<Response>
   } catch (error) {
     return jsonResponse({ ok: false, error: toErrorMessage(error) }, 400);
   }
+  const currentPhase = payload.document.phase;
+  for (const shape of validated) {
+    if (shape.phase !== currentPhase) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: `現在の作業フェーズは${PAINT_PHASE_LABELS_JA[currentPhase]}（${currentPhase}）です。${PAINT_PHASE_LABELS_JA[currentPhase]}の図形のみ追記できます（送られた図形: ${shape.phase}）。次のフェーズへ進むには POST /phase で一段ずつ進めてください。順序は線画→バケツ塗り→影→反射→背景です。`,
+        },
+        400,
+      );
+    }
+  }
   const next: PaintDocument = {
     ...payload.document,
     shapes: [...payload.document.shapes, ...validated],
@@ -155,6 +169,128 @@ async function appendShapes(inputPath: string, body: unknown): Promise<Response>
     );
   }
   return jsonResponse({ ok: true, added: validated.length, total: next.shapes.length });
+}
+
+async function advancePhase(inputPath: string, body: unknown): Promise<Response> {
+  let raw: string;
+  try {
+    raw = await readFile(inputPath, "utf-8");
+  } catch (error) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `入力ファイルを読めませんでした: ${inputPath}（${toErrorMessage(error)}）。`,
+      },
+      400,
+    );
+  }
+  const payload = buildDocumentPayload(raw);
+  if (!payload.ok) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `現在の入力が不正なためフェーズを進められません。先に入力を修正してください（${payload.error}）。`,
+      },
+      400,
+    );
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return jsonResponse(
+      { ok: false, error: 'フェーズは {"phase": "base"} のJSONで送ってください。' },
+      400,
+    );
+  }
+  let requested: ReturnType<typeof parsePaintPhase>;
+  try {
+    requested = parsePaintPhase((body as Record<string, unknown>)["phase"], "phase");
+  } catch (error) {
+    return jsonResponse({ ok: false, error: toErrorMessage(error) }, 400);
+  }
+  const expected = nextPaintPhase(payload.document.phase);
+  if (expected === null) {
+    return jsonResponse(
+      { ok: false, error: "最終フェーズ（background）まで到達済みです。これ以上進めません。" },
+      400,
+    );
+  }
+  if (requested !== expected) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `フェーズは一段ずつ進めます。次は${PAINT_PHASE_LABELS_JA[expected]}（${expected}）へ進めてください（現在: ${payload.document.phase}）。飛ばし・戻りはできません。`,
+      },
+      400,
+    );
+  }
+  const next: PaintDocument = { ...payload.document, phase: requested };
+  try {
+    await writeFile(inputPath, `${JSON.stringify(next, null, 2)}\n`, "utf-8");
+  } catch (error) {
+    return jsonResponse(
+      { ok: false, error: `入力ファイルに書き込めませんでした（${toErrorMessage(error)}）。` },
+      500,
+    );
+  }
+  return jsonResponse({ ok: true, phase: next.phase, total: next.shapes.length });
+}
+
+async function runBucketFill(inputPath: string, body: unknown): Promise<Response> {
+  let raw: string;
+  try {
+    raw = await readFile(inputPath, "utf-8");
+  } catch (error) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `入力ファイルを読めませんでした: ${inputPath}（${toErrorMessage(error)}）。`,
+      },
+      400,
+    );
+  }
+  const payload = buildDocumentPayload(raw);
+  if (!payload.ok) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `現在の入力が不正なためバケツ塗りできません（${payload.error}）。`,
+      },
+      400,
+    );
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: 'バケツ塗りは {"x": 数字, "y": 数字, "fill": "#rrggbb"} のJSONで送ってください。',
+      },
+      400,
+    );
+  }
+  const record = body as Record<string, unknown>;
+  let rects;
+  try {
+    rects = bucketFillToRects(payload.document, {
+      x: record["x"] as number,
+      y: record["y"] as number,
+      fill: record["fill"] as string,
+      tolerance: record["tolerance"] as number | undefined,
+    });
+  } catch (error) {
+    return jsonResponse({ ok: false, error: toErrorMessage(error) }, 400);
+  }
+  const next: PaintDocument = {
+    ...payload.document,
+    shapes: [...payload.document.shapes, ...rects],
+  };
+  try {
+    await writeFile(inputPath, `${JSON.stringify(next, null, 2)}\n`, "utf-8");
+  } catch (error) {
+    return jsonResponse(
+      { ok: false, error: `入力ファイルに書き込めませんでした（${toErrorMessage(error)}）。` },
+      500,
+    );
+  }
+  return jsonResponse({ ok: true, added: rects.length, total: next.shapes.length });
 }
 
 async function clearShapes(inputPath: string): Promise<Response> {
@@ -177,7 +313,7 @@ async function clearShapes(inputPath: string): Promise<Response> {
       400,
     );
   }
-  const next: PaintDocument = { ...payload.document, shapes: [] };
+  const next: PaintDocument = { ...payload.document, shapes: [], phase: "lineart" };
   try {
     await writeFile(inputPath, `${JSON.stringify(next, null, 2)}\n`, "utf-8");
   } catch (error) {
@@ -186,7 +322,7 @@ async function clearShapes(inputPath: string): Promise<Response> {
       500,
     );
   }
-  return jsonResponse({ ok: true, total: 0 });
+  return jsonResponse({ ok: true, total: 0, phase: next.phase });
 }
 
 async function serveReference(referencePath: string | undefined): Promise<Response> {
@@ -261,6 +397,52 @@ export function startPreviewServer(options: PreviewServerOptions): PreviewServer
       }
       if (url.pathname === "/shapes" && request.method === "DELETE") {
         return clearShapes(options.inputPath);
+      }
+      if (url.pathname === "/phase" && request.method === "POST") {
+        return request
+          .json()
+          .catch(
+            () =>
+              ({
+                __invalidJson: true,
+              }) as unknown,
+          )
+          .then((body: unknown) => {
+            if (
+              typeof body === "object" &&
+              body !== null &&
+              "__invalidJson" in (body as Record<string, unknown>)
+            ) {
+              return jsonResponse(
+                { ok: false, error: "JSONの解析に失敗しました。JSONの構文を確認してください。" },
+                400,
+              );
+            }
+            return advancePhase(options.inputPath, body);
+          });
+      }
+      if (url.pathname === "/bucket" && request.method === "POST") {
+        return request
+          .json()
+          .catch(
+            () =>
+              ({
+                __invalidJson: true,
+              }) as unknown,
+          )
+          .then((body: unknown) => {
+            if (
+              typeof body === "object" &&
+              body !== null &&
+              "__invalidJson" in (body as Record<string, unknown>)
+            ) {
+              return jsonResponse(
+                { ok: false, error: "JSONの解析に失敗しました。JSONの構文を確認してください。" },
+                400,
+              );
+            }
+            return runBucketFill(options.inputPath, body);
+          });
       }
       if (url.pathname === "/reference") {
         return serveReference(options.referencePath);

@@ -8,15 +8,15 @@ import {
   type PaintShape,
   type PathShape,
 } from "./paint-document.ts";
+import { PaintValidationError } from "./paint-error.ts";
+import {
+  PAINT_PHASE_ORDER,
+  parsePaintPhase,
+  workflowOrderLabel,
+  type PaintPhase,
+} from "./paint-phase.ts";
 
-export class PaintValidationError extends Error {
-  readonly path: string;
-  constructor(path: string, message: string) {
-    super(`${path}: ${message}`);
-    this.name = "PaintValidationError";
-    this.path = path;
-  }
-}
+export { PaintValidationError } from "./paint-error.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -102,6 +102,16 @@ export function parsePaintShape(value: unknown, index: number): PaintShape {
   return parseShape(value, index);
 }
 
+function parseShapePhase(value: Record<string, unknown>, path: string): PaintPhase {
+  if (value["phase"] === undefined) {
+    throw new PaintValidationError(
+      `${path}.phase`,
+      `作業フェーズを指定してください（${workflowOrderLabel()}）。`,
+    );
+  }
+  return parsePaintPhase(value["phase"], `${path}.phase`);
+}
+
 function parseShape(value: unknown, index: number): PaintShape {
   const path = `shapes[${String(index)}]`;
   if (!isRecord(value)) {
@@ -117,35 +127,31 @@ function parseShape(value: unknown, index: number): PaintShape {
         "rectの幅と高さは0以上で指定してください。負の値はPNGとSVGで描画結果が一致しないため受け付けません。",
       );
     }
-    return withOpacity(
-      {
-        kind: "rect",
-        x: assertFiniteNumber(value["x"], `${path}.x`),
-        y: assertFiniteNumber(value["y"], `${path}.y`),
-        width,
-        height,
-        fill: assertColor(value["fill"], `${path}.fill`),
-      },
-      value,
-      path,
-    );
+    const shape: PaintShape = {
+      kind: "rect",
+      phase: parseShapePhase(value, path),
+      x: assertFiniteNumber(value["x"], `${path}.x`),
+      y: assertFiniteNumber(value["y"], `${path}.y`),
+      width,
+      height,
+      fill: assertColor(value["fill"], `${path}.fill`),
+    };
+    return withOpacity(shape, value, path);
   }
   if (kind === "circle") {
     const r = assertFiniteNumber(value["r"], `${path}.r`);
     if (r <= 0) {
       throw new PaintValidationError(`${path}.r`, "半径は0より大きい数値で指定してください。");
     }
-    return withOpacity(
-      {
-        kind: "circle",
-        cx: assertFiniteNumber(value["cx"], `${path}.cx`),
-        cy: assertFiniteNumber(value["cy"], `${path}.cy`),
-        r,
-        fill: assertColor(value["fill"], `${path}.fill`),
-      },
-      value,
-      path,
-    );
+    const shape: PaintShape = {
+      kind: "circle",
+      phase: parseShapePhase(value, path),
+      cx: assertFiniteNumber(value["cx"], `${path}.cx`),
+      cy: assertFiniteNumber(value["cy"], `${path}.cy`),
+      r,
+      fill: assertColor(value["fill"], `${path}.fill`),
+    };
+    return withOpacity(shape, value, path);
   }
   if (kind === "line") {
     const strokeWidth = assertFiniteNumber(value["strokeWidth"], `${path}.strokeWidth`);
@@ -155,19 +161,17 @@ function parseShape(value: unknown, index: number): PaintShape {
         "線幅は0より大きい数値で指定してください。",
       );
     }
-    return withOpacity(
-      {
-        kind: "line",
-        x1: assertFiniteNumber(value["x1"], `${path}.x1`),
-        y1: assertFiniteNumber(value["y1"], `${path}.y1`),
-        x2: assertFiniteNumber(value["x2"], `${path}.x2`),
-        y2: assertFiniteNumber(value["y2"], `${path}.y2`),
-        stroke: assertColor(value["stroke"], `${path}.stroke`),
-        strokeWidth,
-      },
-      value,
-      path,
-    );
+    const shape: PaintShape = {
+      kind: "line",
+      phase: parseShapePhase(value, path),
+      x1: assertFiniteNumber(value["x1"], `${path}.x1`),
+      y1: assertFiniteNumber(value["y1"], `${path}.y1`),
+      x2: assertFiniteNumber(value["x2"], `${path}.x2`),
+      y2: assertFiniteNumber(value["y2"], `${path}.y2`),
+      stroke: assertColor(value["stroke"], `${path}.stroke`),
+      strokeWidth,
+    };
+    return withOpacity(shape, value, path);
   }
   if (kind === "path") {
     const pointsValue = value["points"];
@@ -204,6 +208,7 @@ function parseShape(value: unknown, index: number): PaintShape {
     const fill = fillValue === undefined ? undefined : assertColor(fillValue, `${path}.fill`);
     const shape: PathShape = {
       kind: "path",
+      phase: parseShapePhase(value, path),
       points,
       stroke: assertColor(value["stroke"], `${path}.stroke`),
       strokeWidth,
@@ -217,9 +222,51 @@ function parseShape(value: unknown, index: number): PaintShape {
   );
 }
 
+function assertPhaseOrder(shapes: readonly PaintShape[], documentPhase: PaintPhase): void {
+  const documentRank = PAINT_PHASE_ORDER[documentPhase];
+  for (let index = 0; index < shapes.length; index += 1) {
+    const shape = shapes[index];
+    if (shape === undefined) {
+      continue;
+    }
+    const rank = PAINT_PHASE_ORDER[shape.phase];
+    if (rank > documentRank) {
+      throw new PaintValidationError(
+        `shapes[${String(index)}].phase`,
+        `現在の作業フェーズを超えた図形は置けません（現在: ${documentPhase}、図形: ${shape.phase}）。先にフェーズを進めてください。順序は${workflowOrderLabel()}です。`,
+      );
+    }
+    if (index > 0) {
+      const previous = shapes[index - 1];
+      if (previous !== undefined && PAINT_PHASE_ORDER[previous.phase] > rank) {
+        throw new PaintValidationError(
+          `shapes[${String(index)}].phase`,
+          `図形は作業順（${workflowOrderLabel()}）に並べてください。前の図形が ${previous.phase} なのに ${shape.phase} に戻っています。`,
+        );
+      }
+    }
+  }
+}
+
+function parseDocumentPhase(value: unknown): PaintPhase {
+  if (value === undefined) {
+    throw new PaintValidationError(
+      "phase",
+      `現在の作業フェーズを指定してください（${workflowOrderLabel()}）。最初は "lineart" です。`,
+    );
+  }
+  return parsePaintPhase(value, "phase");
+}
+
 export function parsePaintDocument(value: unknown): PaintDocument {
   if (!isRecord(value)) {
     throw new PaintValidationError("$", "描画ドキュメントはJSONオブジェクトで指定してください。");
+  }
+  if (value["version"] === 1) {
+    throw new PaintValidationError(
+      "version",
+      "version 1 は旧形式です。bun run src/migrate.ts -- --input <旧JSON> --output <新JSON> で version 2（作業フェーズ付き）へ移行してください。",
+    );
   }
   if (value["version"] !== PAINT_DOCUMENT_VERSION) {
     throw new PaintValidationError(
@@ -237,10 +284,52 @@ export function parsePaintDocument(value: unknown): PaintDocument {
       `図形は最大 ${String(MAX_SHAPES)} 件までです。件数を減らしてください。`,
     );
   }
+  const phase = parseDocumentPhase(value["phase"]);
   const shapes = shapesValue.map((item: unknown, index: number) => parseShape(item, index));
+  assertPhaseOrder(shapes, phase);
   return {
     version: PAINT_DOCUMENT_VERSION,
     canvas: parseCanvas(value["canvas"]),
+    phase,
+    shapes,
+  };
+}
+
+/**
+ * version 1 の旧ドキュメントを version 2 へ明示的に移行する。
+ * 旧図形にフェーズ情報がないため、すべて線画として取り込み、
+ * ドキュメントの現在フェーズも線画からやり直す。塗り以降の作業は
+ * 移行後にフェーズを進めて追加し直す。
+ */
+export function migrateV1ToV2Document(value: unknown): PaintDocument {
+  if (!isRecord(value)) {
+    throw new PaintValidationError("$", "描画ドキュメントはJSONオブジェクトで指定してください。");
+  }
+  if (value["version"] !== 1) {
+    throw new PaintValidationError(
+      "version",
+      "移行元は version 1 のJSONを指定してください。version 2 は移行不要です。",
+    );
+  }
+  const canvas = parseCanvas(value["canvas"]);
+  const shapesValue = value["shapes"];
+  if (!Array.isArray(shapesValue)) {
+    throw new PaintValidationError("shapes", "shapes は図形オブジェクトの配列で指定してください。");
+  }
+  if (shapesValue.length > MAX_SHAPES) {
+    throw new PaintValidationError(
+      "shapes",
+      `図形は最大 ${String(MAX_SHAPES)} 件までです。件数を減らしてください。`,
+    );
+  }
+  const shapes = shapesValue.map((item: unknown, index: number) => {
+    const withoutPhase: unknown = isRecord(item) ? { ...item, phase: "lineart" } : item;
+    return parseShape(withoutPhase, index);
+  });
+  return {
+    version: PAINT_DOCUMENT_VERSION,
+    canvas,
+    phase: "lineart",
     shapes,
   };
 }

@@ -1,5 +1,6 @@
 import { createCanvas } from "@napi-rs/canvas";
 import type { PaintDocument } from "./paint-document.ts";
+import { sortShapesByDisplayOrder } from "./paint-phase.ts";
 
 export function renderDocumentToPng(document: PaintDocument): Buffer {
   const canvas = createCanvas(document.canvas.width, document.canvas.height);
@@ -8,7 +9,7 @@ export function renderDocumentToPng(document: PaintDocument): Buffer {
   context.fillStyle = document.canvas.background;
   context.fillRect(0, 0, document.canvas.width, document.canvas.height);
 
-  for (const shape of document.shapes) {
+  for (const shape of sortShapesByDisplayOrder(document.shapes)) {
     context.save();
     if (shape.opacity !== undefined) {
       context.globalAlpha = shape.opacity;

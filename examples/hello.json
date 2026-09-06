@@ -1,17 +1,27 @@
 {
-  "version": 1,
+  "version": 2,
   "canvas": { "width": 320, "height": 200, "background": "#ffffff" },
+  "phase": "base",
   "shapes": [
-    { "kind": "rect", "x": 20, "y": 30, "width": 120, "height": 80, "fill": "#ff0000" },
-    { "kind": "circle", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff" },
     {
       "kind": "line",
+      "phase": "lineart",
       "x1": 20,
       "y1": 170,
       "x2": 300,
       "y2": 170,
       "stroke": "#000000",
       "strokeWidth": 4
-    }
+    },
+    {
+      "kind": "rect",
+      "phase": "base",
+      "x": 20,
+      "y": 30,
+      "width": 120,
+      "height": 80,
+      "fill": "#ff0000"
+    },
+    { "kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff" }
   ]
 }

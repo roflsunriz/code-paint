@@ -1,4 +1,5 @@
 import type { PaintDocument, PaintShape } from "./paint-document.ts";
+import { sortShapesByDisplayOrder } from "./paint-phase.ts";
 
 function opacityAttribute(opacity: number | undefined): string {
   return opacity === undefined ? "" : ` opacity="${String(opacity)}"`;
@@ -35,10 +36,12 @@ function shapeToSvg(shape: PaintShape): string {
  * 出力は決定的で、同一入力からは常に同一文字列を返すため、
  * 画像を見られないエージェントでも厳密な文字列比較・diffで検証できる。
  * なお値は検証済み（数値・16進色）のみが入るため、追加のエスケープは不要。
+ * 作業フェーズは線画→バケツ塗り→影→反射→背景の順に検証されるが、
+ * 描画では背景層を常に最背面に合成する（PNGと同一順）。
  */
 export function renderDocumentToSvg(document: PaintDocument): string {
   const width = String(document.canvas.width);
   const height = String(document.canvas.height);
-  const shapes = document.shapes.map(shapeToSvg).join("");
+  const shapes = sortShapesByDisplayOrder(document.shapes).map(shapeToSvg).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="0" y="0" width="${width}" height="${height}" fill="${document.canvas.background}"/>${shapes}</svg>`;
 }

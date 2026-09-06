@@ -5,13 +5,13 @@ import { renderDocumentToSvg } from "../src/render-svg.ts";
 import { parsePaintDocument } from "../src/validate-document.ts";
 
 const SAMPLE: PaintDocument = {
-  version: 1,
+  version: 2,
   canvas: { width: 320, height: 200, background: "#ffffff" },
+  phase: "base",
   shapes: [
-    { kind: "rect", x: 20, y: 30, width: 120, height: 80, fill: "#ff0000" },
-    { kind: "circle", cx: 220, cy: 100, r: 48, fill: "#0000ff" },
     {
       kind: "line",
+      phase: "lineart",
       x1: 20,
       y1: 170,
       x2: 300,
@@ -19,6 +19,8 @@ const SAMPLE: PaintDocument = {
       stroke: "#000000",
       strokeWidth: 4,
     },
+    { kind: "rect", phase: "base", x: 20, y: 30, width: 120, height: 80, fill: "#ff0000" },
+    { kind: "circle", phase: "base", cx: 220, cy: 100, r: 48, fill: "#0000ff" },
   ],
 };
 
@@ -41,11 +43,13 @@ describe("renderDocumentToSvg", () => {
 
   test("pathとopacityを写像する", () => {
     const document: PaintDocument = {
-      version: 1,
+      version: 2,
       canvas: { width: 100, height: 100, background: "#ffffff" },
+      phase: "lineart",
       shapes: [
         {
           kind: "path",
+          phase: "lineart",
           points: [
             { x: 0, y: 0 },
             { x: 10, y: 10 },
@@ -62,6 +66,24 @@ describe("renderDocumentToSvg", () => {
     expect(svg).toContain(
       '<path d="M0 0 L10 10 L20 0" fill="#ff0000" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>',
     );
+  });
+
+  test("背景フェーズはSVGでも最背面に出力される", () => {
+    const document: PaintDocument = {
+      version: 2,
+      canvas: { width: 32, height: 32, background: "#ffffff" },
+      phase: "background",
+      shapes: [
+        { kind: "rect", phase: "base", x: 4, y: 4, width: 8, height: 8, fill: "#ff0000" },
+        { kind: "rect", phase: "background", x: 0, y: 0, width: 32, height: 32, fill: "#0000ff" },
+      ],
+    };
+    const svg = renderDocumentToSvg(document);
+    const backgroundIndex = svg.indexOf('fill="#0000ff"');
+    const baseIndex = svg.indexOf('fill="#ff0000"');
+    expect(backgroundIndex).toBeGreaterThan(-1);
+    expect(baseIndex).toBeGreaterThan(-1);
+    expect(backgroundIndex).toBeLessThan(baseIndex);
   });
 
   test("実サンプルとPNG描画が同じ図形件数・寸法を表す", async () => {

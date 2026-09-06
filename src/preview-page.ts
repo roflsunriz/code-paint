@@ -259,8 +259,9 @@ export function buildPreviewHtml(): string {
   <div class="topbar-inner">
     <div class="brand">
       <h1>code-paint プレビュー</h1>
-      <p>保存・追記で約${String(PREVIEW_POLL_MS)}ms間隔に自動更新されます。</p>
+      <p>保存・追記で約${String(PREVIEW_POLL_MS)}ms間隔に自動更新されます。作業順は線画→バケツ塗り→影→反射→背景です。</p>
     </div>
+    <span class="status-pill" data-testid="phase-badge">フェーズ: -</span>
     <span class="status-pill" data-testid="preview-status">読み込み中…</span>
   </div>
 </header>
@@ -299,7 +300,8 @@ export function buildPreviewHtml(): string {
     </div>
     <h3>JSON</h3>
     <pre data-testid="command-json">(読み込み中…)</pre>
-    <p class="hint">逐次追記は <code class="inline">POST /shapes</code>（単発 <code class="inline">{"shape": {...}}</code>／複数 <code class="inline">{"shapes": [...]}</code>）、全消去は <code class="inline">DELETE /shapes</code> を使います。</p>
+    <p data-testid="phase-progress">作業順: 線画→バケツ塗り→影→反射→背景（現在: -）。背景は最後に作業しますが描画では最背面に合成されます。</p>
+    <p class="hint">逐次追記は <code class="inline">POST /shapes</code>（単発 <code class="inline">{"shape": {...}}</code>／複数 <code class="inline">{"shapes": [...]}</code>、現在のフェーズの図形のみ）、フェーズ進行は <code class="inline">POST /phase {"phase": "base"}</code>、バケツ塗りは <code class="inline">POST /bucket {"x": 1, "y": 1, "fill": "#ff0000"}</code>、全消去は <code class="inline">DELETE /shapes</code> を使います。</p>
   </section>
 </main>
 <script>
@@ -312,6 +314,8 @@ export function buildPreviewHtml(): string {
     var shapeListEl = document.querySelector('[data-testid="shape-list"]');
     var shapeScrollEl = document.querySelector('[data-testid="shape-scroll"]');
     var countEl = document.querySelector('[data-testid="shape-count"]');
+    var phaseBadgeEl = document.querySelector('[data-testid="phase-badge"]');
+    var phaseProgressEl = document.querySelector('[data-testid="phase-progress"]');
     var refImg = document.querySelector('[data-testid="reference-image"]');
     var refStatus = document.querySelector('[data-testid="reference-status"]');
     var lastHash = "";
@@ -332,16 +336,35 @@ export function buildPreviewHtml(): string {
 
     function describeShape(shape, index) {
       var opacity = shape.opacity === undefined ? "" : " opacity=" + shape.opacity;
+      var phase = shape.phase === undefined ? "phaseなし" : "[" + shape.phase + "] ";
       if (shape.kind === "rect") {
-        return "#" + index + " rect x=" + shape.x + " y=" + shape.y + " " + shape.width + "x" + shape.height + " " + shape.fill + opacity;
+        return "#" + index + " " + phase + "rect x=" + shape.x + " y=" + shape.y + " " + shape.width + "x" + shape.height + " " + shape.fill + opacity;
       }
       if (shape.kind === "circle") {
-        return "#" + index + " circle cx=" + shape.cx + " cy=" + shape.cy + " r=" + shape.r + " " + shape.fill + opacity;
+        return "#" + index + " " + phase + "circle cx=" + shape.cx + " cy=" + shape.cy + " r=" + shape.r + " " + shape.fill + opacity;
       }
       if (shape.kind === "line") {
-        return "#" + index + " line (" + shape.x1 + "," + shape.y1 + ")-(" + shape.x2 + "," + shape.y2 + ") " + shape.stroke + " w=" + shape.strokeWidth + opacity;
+        return "#" + index + " " + phase + "line (" + shape.x1 + "," + shape.y1 + ")-(" + shape.x2 + "," + shape.y2 + ") " + shape.stroke + " w=" + shape.strokeWidth + opacity;
       }
-      return "#" + index + " path " + shape.points.length + "点 " + shape.stroke + " w=" + shape.strokeWidth + opacity;
+      return "#" + index + " " + phase + "path " + shape.points.length + "点 " + shape.stroke + " w=" + shape.strokeWidth + opacity;
+    }
+
+    function displayRank(phase) {
+      if (phase === "background") return 0;
+      if (phase === "base") return 1;
+      if (phase === "shadow") return 2;
+      if (phase === "reflection") return 3;
+      return 4;
+    }
+
+    function orderedShapes(shapes) {
+      return shapes
+        .map(function (shape, index) { return { shape: shape, index: index }; })
+        .sort(function (a, b) {
+          var rank = displayRank(a.shape.phase) - displayRank(b.shape.phase);
+          return rank !== 0 ? rank : a.index - b.index;
+        })
+        .map(function (entry) { return entry.shape; });
     }
 
     function renderDocument(doc) {
@@ -353,8 +376,9 @@ export function buildPreviewHtml(): string {
       }
       ctx.fillStyle = doc.canvas.background;
       ctx.fillRect(0, 0, doc.canvas.width, doc.canvas.height);
-      for (var i = 0; i < doc.shapes.length; i += 1) {
-        var shape = doc.shapes[i];
+      var ordered = orderedShapes(doc.shapes);
+      for (var i = 0; i < ordered.length; i += 1) {
+        var shape = ordered[i];
         ctx.save();
         if (shape.opacity !== undefined) {
           ctx.globalAlpha = shape.opacity;
@@ -393,6 +417,16 @@ export function buildPreviewHtml(): string {
           ctx.stroke();
         }
         ctx.restore();
+      }
+    }
+
+    function updatePhase(doc) {
+      if (phaseBadgeEl) {
+        phaseBadgeEl.textContent = "フェーズ: " + doc.phase;
+      }
+      if (phaseProgressEl) {
+        phaseProgressEl.textContent =
+          "作業順: 線画→バケツ塗り→影→反射→背景（現在: " + doc.phase + "）。背景は最後に作業しますが描画では最背面に合成されます。";
       }
     }
 
@@ -457,15 +491,16 @@ export function buildPreviewHtml(): string {
               okEl.textContent =
                 "更新: " + new Date().toLocaleTimeString("ja-JP") +
                 " / " + payload.document.canvas.width + "x" + payload.document.canvas.height +
-                " / 図形" + payload.document.shapes.length + "件";
+                " / 図形" + payload.document.shapes.length + "件 / フェーズ " + payload.document.phase;
             }
             renderDocument(payload.document);
+            updatePhase(payload.document);
             updateShapeList(payload.document);
             scrollToBottom(jsonEl);
             setStatus(
               "更新: " + new Date().toLocaleTimeString("ja-JP") +
               " / " + payload.document.canvas.width + "x" + payload.document.canvas.height +
-              " / 図形" + payload.document.shapes.length + "件 / hash " + payload.hash
+              " / 図形" + payload.document.shapes.length + "件 / フェーズ " + payload.document.phase + " / hash " + payload.hash
             );
           } else {
             if (errorEl) {

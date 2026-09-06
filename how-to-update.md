@@ -35,8 +35,18 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference re
 逐次追記する場合（入力JSONに保存され画面へ自動反映される）:
 
 ```powershell
-curl.exe -Method POST http://localhost:8901/shapes -ContentType "application/json" -Body '{"shape": {"kind": "circle", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
+curl.exe -Method POST http://localhost:8901/shapes -ContentType "application/json" -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
+curl.exe -Method POST http://localhost:8901/phase -ContentType "application/json" -Body '{"phase": "shadow"}'
+curl.exe -Method POST http://localhost:8901/bucket -ContentType "application/json" -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
 curl.exe -Method DELETE http://localhost:8901/shapes
+```
+
+作業順は線画→バケツ塗り→影→反射→背景で、追記は現在のフェーズのみ、進行は一段ずつ。消去するとフェーズは線画に戻る。
+
+旧形式（version 1）の入力を移行する場合:
+
+```powershell
+bun run src/migrate.ts -- --input <旧JSON> --output <新JSON>
 ```
 
 ## 検証方法

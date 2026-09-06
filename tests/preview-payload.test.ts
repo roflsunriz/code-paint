@@ -4,9 +4,10 @@ import { buildDocumentPayload, hashString } from "../src/preview-payload.ts";
 describe("buildDocumentPayload", () => {
   test("正常なDSLは描画用ドキュメントと原文を返す", () => {
     const raw = JSON.stringify({
-      version: 1,
+      version: 2,
       canvas: { width: 64, height: 48, background: "#ffffff" },
-      shapes: [{ kind: "rect", x: 1, y: 2, width: 10, height: 20, fill: "#ff0000" }],
+      phase: "base",
+      shapes: [{ kind: "rect", phase: "base", x: 1, y: 2, width: 10, height: 20, fill: "#ff0000" }],
     });
     const payload = buildDocumentPayload(raw);
     expect(payload.ok).toBe(true);
@@ -29,8 +30,9 @@ describe("buildDocumentPayload", () => {
   test("検証NGのDSLは次の行動が分かるエラーを返す", () => {
     const payload = buildDocumentPayload(
       JSON.stringify({
-        version: 1,
+        version: 2,
         canvas: { width: 10, height: 10, background: "red" },
+        phase: "lineart",
         shapes: [],
       }),
     );

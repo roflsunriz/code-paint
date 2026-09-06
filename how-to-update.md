@@ -12,6 +12,14 @@ bun install
 bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
 ```
 
+プレビューを使う場合:
+
+```powershell
+bun run src/preview.ts -- --input examples/hello.json --port 8901
+```
+
+起動後に `http://localhost:8901/` を開く。終了は Ctrl+C。
+
 ## 検証方法
 
 ```powershell
@@ -30,3 +38,4 @@ bun run test
 - 本ツールは入力JSONを読み取り、指定PNGを上書きするのみ。既存の入力は変更しない。
 - 出力を誤って上書きした場合は、入力JSONから再生成する。
 - 依存関係の更新で描画が変わった場合は、`bun.lock` を戻し `bun install` し直す。
+- プレビューのポートが使用中の場合は `--port` を変える（例: `--port 8902）。サーバは `127.0.0.1` のみで待ち受ける。

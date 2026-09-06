@@ -6,11 +6,12 @@
   "description": "コードのみでHTML 2D Canvas相当のイラストを描くCLI（JSON DSL入力→PNG出力）",
   "scripts": {
     "paint": "bun run src/cli.ts",
+    "preview": "bun run src/preview.ts",
     "lint": "eslint src tests --max-warnings=0",
     "format": "prettier --check src tests examples package.json tsconfig.json",
     "format:write": "prettier --write src tests examples package.json tsconfig.json",
     "type-check": "tsc --noEmit",
-    "build": "bun build src/cli.ts --outdir dist --target bun",
+    "build": "bun build src/cli.ts src/preview.ts --outdir dist --target bun",
     "test": "bun test"
   },
   "dependencies": {

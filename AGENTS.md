@@ -26,3 +26,6 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - DSLは `version: 1` 固定、色は `#RGB/#RRGGBB/#RRGGBBAA` のみ、寸法上限4096・図形上限10000。旧データは明示的マイグレーション対象（`src/validate-document.ts`）。
 - ESLintの `restrict-template-expressions` により、テンプレート内の数値は `String()` で明示変換する（文字列は変換不要）。
 - PNG確認は先頭8バイト `137,80,78,71,13,10,26,10` で行う（`verification.md` 参照）。
+- プレビューは `bun run src/preview.ts -- --input <JSON> --port 8901` で起動し、`http://localhost:8901/` で確認する。サーバは `Bun.serve` で `127.0.0.1` のみ待ち受け、入力は要求ごとに読み直すためファイル保存で約500ms間隔の取得により自動更新される（`src/preview-server.ts`、`src/preview-payload.ts`、`src/preview-page.ts`）。
+- プレビュー画面の要素特定は `data-*` 属性（`paint-canvas`、`command-json`、`shape-list`、`preview-status`、`preview-error`）を使う。表示文言に依存しない。
+- 実ブラウザ確認は一時プロファイルのヘッドレスChromeで行う（`--user-data-dir` に一時ディレクトリ、`--screenshot` / `--dump-dom`）。ツール呼び出しをまたいで常駐させたいサーバは、バックグラウンドジョブではなく単一コマンド内で `Start-Process` 起動・検証・停止まで行う。

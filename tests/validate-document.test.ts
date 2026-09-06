@@ -1,0 +1,57 @@
+import { describe, expect, test } from "bun:test";
+import { parsePaintDocument } from "../src/validate-document.ts";
+
+describe("parsePaintDocument", () => {
+  test("最小の正常ドキュメントを受け付ける", () => {
+    const document = parsePaintDocument({
+      version: 1,
+      canvas: { width: 64, height: 48, background: "#ffffff" },
+      shapes: [],
+    });
+    expect(document.canvas.width).toBe(64);
+    expect(document.shapes).toHaveLength(0);
+  });
+
+  test("3種の図形を受け付ける", () => {
+    const document = parsePaintDocument({
+      version: 1,
+      canvas: { width: 100, height: 100, background: "#000000" },
+      shapes: [
+        { kind: "rect", x: 1, y: 2, width: 10, height: 20, fill: "#ff0000" },
+        { kind: "circle", cx: 50, cy: 50, r: 10, fill: "#00ff00" },
+        { kind: "line", x1: 0, y1: 0, x2: 10, y2: 10, stroke: "#0000ff", strokeWidth: 2 },
+      ],
+    });
+    expect(document.shapes).toHaveLength(3);
+  });
+
+  test("version不一致は旧データとして拒否する", () => {
+    expect(() =>
+      parsePaintDocument({
+        version: 2,
+        canvas: { width: 10, height: 10, background: "#ffffff" },
+        shapes: [],
+      }),
+    ).toThrow(/version/);
+  });
+
+  test("不正な色は次の行動が分かるエラーにする", () => {
+    expect(() =>
+      parsePaintDocument({
+        version: 1,
+        canvas: { width: 10, height: 10, background: "red" },
+        shapes: [],
+      }),
+    ).toThrow(/#RGB/);
+  });
+
+  test("未知の図形種別を拒否する", () => {
+    expect(() =>
+      parsePaintDocument({
+        version: 1,
+        canvas: { width: 10, height: 10, background: "#ffffff" },
+        shapes: [{ kind: "star" }],
+      }),
+    ).toThrow(/rect.*circle.*line/);
+  });
+});

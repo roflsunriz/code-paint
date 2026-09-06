@@ -1,0 +1,27 @@
+{
+  "name": "code-paint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "コードのみでHTML 2D Canvas相当のイラストを描くCLI（JSON DSL入力→PNG出力）",
+  "scripts": {
+    "paint": "bun run src/cli.ts",
+    "lint": "eslint src tests --max-warnings=0",
+    "format": "prettier --check src tests examples package.json tsconfig.json",
+    "format:write": "prettier --write src tests examples package.json tsconfig.json",
+    "type-check": "tsc --noEmit",
+    "build": "bun build src/cli.ts --outdir dist --target bun",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "1.0.8"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21",
+    "eslint": "9.34.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.44.0"
+  },
+  "license": "MIT"
+}

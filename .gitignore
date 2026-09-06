@@ -1,1 +1,5 @@
 COMMON-AGENTS.md
+node_modules/
+dist/
+out/
+subagents/

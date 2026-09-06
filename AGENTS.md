@@ -28,6 +28,10 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - ESLintの `restrict-template-expressions` により、テンプレート内の数値は `String()` で明示変換する（文字列は変換不要）。
 - PNG確認は先頭8バイト `137,80,78,71,13,10,26,10` で行う（`verification.md` 参照）。
 - プレビューは `bun run src/preview.ts -- --input <JSON> --port 8901` で起動し、`http://localhost:8901/` で確認する。サーバは `Bun.serve` で `127.0.0.1` のみ待ち受け、入力は要求ごとに読み直すためファイル保存で約500ms間隔の取得により自動更新される（`src/preview-server.ts`、`src/preview-payload.ts`、`src/preview-page.ts`）。
+- 逐次描画は `POST /shapes`（`{"shape": {...}}` / `{"shapes": [...]}`）で入力JSONへ追記し、`DELETE /shapes` で全消去する。追記・消去はファイルを直接更新するため `/document`・`/svg`・CLI出力と連動する。単発検証は `parsePaintShape`（`src/validate-document.ts`）を使う。
+- リファレンス画像は `--reference <画像パス>` で指定し、画面の `reference-image` 枠と `GET /reference`（未設定・紛失時は404JSON）で受け渡す（`src/preview-server.ts`、`src/preview-page.ts`）。
+- 受け取った命令欄は固定高さ240pxのスクロール表示（`shape-scroll`・`command-json`）で、更新時に末尾へ自動スクロールし、図形一覧は最新200件（`PREVIEW_MAX_LIST_ITEMS`）のみ表示する。
+- Bunでは `process.exitCode = undefined` の代入で終了コードが元に戻らない。失敗系テストの後始末は `0` の明示代入で行う（`tests/cli.test.ts`）。
 - プレビュー画面の要素特定は `data-*` 属性（`paint-canvas`、`command-json`、`shape-list`、`preview-status`、`preview-error`）を使う。表示文言に依存しない。
 - 実ブラウザ確認は一時プロファイルのヘッドレスChromeで行う（`--user-data-dir` に一時ディレクトリ、`--screenshot` / `--dump-dom`）。ツール呼び出しをまたいで常駐させたいサーバは、バックグラウンドジョブではなく単一コマンド内で `Start-Process` 起動・検証・停止まで行う。
 - コード受領手段としてSVGを用意する。`src/render-svg.ts` はPNG描画と同一セマンティクスの決定的テキストを返し、CLIの `--svg` とプレビューの `/svg`（異常時は400番台JSON）で配信する。新規依存は持たせない。

@@ -15,10 +15,13 @@ bun run test
 - `type-check`: `tsc --noEmit` による厳密な型検査。
 - `build`: `bun build` によるバンドル確認。
 - `test`: `bun test`。検証・退行の観点は次の通り。
-  - DSL検証: 正常系（空shapes・3種図形・pathとopacity）、異常系（version不一致、色形式、未知kind、負寸法rect、不足点path、範囲外opacity）。
+  - DSL検証: 正常系（空shapes・3種図形・pathとopacity）、異常系（version不一致、色形式、未知kind、負寸法rect、不足点path、範囲外opacity）。単発検証 `parsePaintShape` の正常・異常系。
   - 描画: PNGシグネチャ確認、背景色と矩形のピクセル一致（退行防止）、pathの線のピクセル一致、opacityの混色。
   - SVG: 3種図形の写像・決定性（同一入力で同一文字列）・実サンプルとの対応、pathとopacityの写像、CLIの `--svg` 出力（省略時はPNGのみ）、サーバ `/svg` の正常・異常系。
   - プレビュー: ペイロード生成（正常・壊れたJSON・検証NG・ハッシュ変化）、サーバ経路（`/` の画面目印、`/document` の正常・不存在入力）、画面HTMLの3種描画分岐と自動取得。
+  - 追記: `POST /shapes` の単発・複数・異常系（400で既存不変）、`DELETE /shapes` の全消去。
+  - リファレンス: `/reference` の未設定404・設定時200と画像content-type、画面の表示目印。
+  - 命令欄: 固定高スクロール・最新200件表示・自動スクロール（`scrollTop`/`scrollHeight`）の含有。
 
 ## 手動検証（端到端）
 
@@ -41,8 +44,11 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 
 確認項目:
 
-- `http://localhost:8901/` でキャンバス描画（矩形・円・線）と受け取った命令（図形一覧・JSON原文）が同時に表示される。
+- `http://localhost:8901/` でキャンバス描画（矩形・円・線）と受け取った命令（図形一覧・JSON原文）とリファレンス枠が同時に表示される。
 - 入力JSONを保存するとハッシュが変わり、約500ms間隔の取得で画面が自動更新される。
+- `POST /shapes` で1件追記すると図形件数が増え、画面の命令欄が末尾へ自動スクロールする。不正な図形は400番台JSONで拒否される。
+- `--reference` 付き起動では見本画像が表示され、`curl.exe http://localhost:8901/reference -OutFile out/reference.png` で取得できる。未設定時は404の案内JSONになる。
+- 命令欄（図形一覧・JSON）は固定高さでスクロールし、図形一覧は最新200件のみ表示される。
 - 不正なJSONや検証NGの入力でもサーバが落ちず、画面にエラーが表示される。
 - 代表的な複数ビューポート（例: 1920x1080、390x844）のヘッドレスChromeでスクリーンショットまたはDOM実測を行い、文字切れ・重なり・操作不能な要素がないか確認する。
 

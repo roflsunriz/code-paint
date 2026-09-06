@@ -4,21 +4,24 @@ import { startPreviewServer } from "./preview-server.ts";
 interface PreviewCliOptions {
   input: string;
   port: number;
+  reference: string | undefined;
 }
 
 const DEFAULT_PORT = 8901;
 
 function printUsage(): void {
-  console.log(`使い方: bun run src/preview.ts -- --input <入力JSON> [--port ${String(DEFAULT_PORT)}]
+  console.log(`使い方: bun run src/preview.ts -- --input <入力JSON> [--port ${String(DEFAULT_PORT)}] [--reference <画像パス>]
 
 ブラウザで開くプレビュー用サーバを起動します。
 例: bun run src/preview.ts -- --input examples/hello.json --port ${String(DEFAULT_PORT)}
+リファレンス画像を付ける例: bun run src/preview.ts -- --input examples/hello.json --reference reference/miku.png
 起動後に http://localhost:${String(DEFAULT_PORT)}/ を開くと、キャンバスと受け取った命令が見られます。`);
 }
 
 function parseArgs(args: readonly string[]): PreviewCliOptions | null {
   let input: string | undefined;
   let port: number = DEFAULT_PORT;
+  let reference: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === undefined) {
@@ -35,6 +38,9 @@ function parseArgs(args: readonly string[]): PreviewCliOptions | null {
         throw new PaintValidationError("args", "--port には 1〜65535 の整数を指定してください。");
       }
       port = parsed;
+    } else if (arg === "--reference") {
+      reference = args[index + 1];
+      index += 1;
     } else if (arg === "--help" || arg === "-h") {
       return null;
     } else {
@@ -47,7 +53,7 @@ function parseArgs(args: readonly string[]): PreviewCliOptions | null {
   if (input === undefined) {
     throw new PaintValidationError("args", "--input <入力JSON> を指定してください。");
   }
-  return { input, port };
+  return { input, port, reference };
 }
 
 function toErrorMessage(error: unknown): string {
@@ -73,6 +79,7 @@ export async function run(argv: readonly string[]): Promise<void> {
     server = startPreviewServer({
       inputPath: options.input,
       port: options.port,
+      referencePath: options.reference,
     });
   } catch (error) {
     console.error(

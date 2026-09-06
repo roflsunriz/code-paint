@@ -98,6 +98,10 @@ function parseCanvas(value: unknown): PaintCanvas {
   };
 }
 
+export function parsePaintShape(value: unknown, index: number): PaintShape {
+  return parseShape(value, index);
+}
+
 function parseShape(value: unknown, index: number): PaintShape {
   const path = `shapes[${String(index)}]`;
   if (!isRecord(value)) {

@@ -40,5 +40,7 @@ describe("cli --svg", () => {
     await writeFile(blocker, "file", "utf-8");
     await run(["--input", "examples/hello.json", "--output", join(blocker, "out.png")]);
     expect(process.exitCode).toBe(1);
+    // Bunでは process.exitCode = undefined で終了コードが戻らないため、0で明示的に戻す。
+    process.exitCode = 0;
   });
 });

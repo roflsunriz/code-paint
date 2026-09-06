@@ -23,7 +23,8 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - 実行基盤は Bun 1.x + TypeScript（strict）。`bun run lint` / `format` / `type-check` / `build` / `test` を必ず用意する（`package.json` 参照）。
 - ヘッドレス描画は `@napi-rs/canvas@1.0.8` を採用。根拠: MIT、型定義同梱（`./index.d.ts`）、直近リリース2026-08-24、プリビルド配布でWindows導入が軽い。`canvas@3.2.3` はネイティブ依存が重く、`skia-canvas@3.0.8` は更新が2025-09-25で古いため不採用。
 - CLIは `bun run src/cli.ts -- --input <JSON> --output <PNG>`。`out/`、`dist/`、`node_modules/` は生成物として `.gitignore` 済み。
-- DSLは `version: 1` 固定、色は `#RGB/#RRGGBB/#RRGGBBAA` のみ、寸法上限4096・図形上限10000。旧データは明示的マイグレーション対象（`src/validate-document.ts`）。
+- DSLは `version: 1` 固定、色は `#RGB/#RRGGBB/#RRGGBBAA` のみ、寸法上限4096・図形上限10000・path点数上限10000。旧データは明示的マイグレーション対象（`src/validate-document.ts`）。
+- 図形は `rect/circle/line/path`、全図形に任意 `opacity`（0〜1）。描画順は配列順。rectの負寸法はPNG/SVG不一致のため拒否する。
 - ESLintの `restrict-template-expressions` により、テンプレート内の数値は `String()` で明示変換する（文字列は変換不要）。
 - PNG確認は先頭8バイト `137,80,78,71,13,10,26,10` で行う（`verification.md` 参照）。
 - プレビューは `bun run src/preview.ts -- --input <JSON> --port 8901` で起動し、`http://localhost:8901/` で確認する。サーバは `Bun.serve` で `127.0.0.1` のみ待ち受け、入力は要求ごとに読み直すためファイル保存で約500ms間隔の取得により自動更新される（`src/preview-server.ts`、`src/preview-payload.ts`、`src/preview-page.ts`）。

@@ -9,6 +9,10 @@ export function renderDocumentToPng(document: PaintDocument): Buffer {
   context.fillRect(0, 0, document.canvas.width, document.canvas.height);
 
   for (const shape of document.shapes) {
+    context.save();
+    if (shape.opacity !== undefined) {
+      context.globalAlpha = shape.opacity;
+    }
     switch (shape.kind) {
       case "rect": {
         context.fillStyle = shape.fill;
@@ -31,7 +35,28 @@ export function renderDocumentToPng(document: PaintDocument): Buffer {
         context.stroke();
         break;
       }
+      case "path": {
+        context.strokeStyle = shape.stroke;
+        context.lineWidth = shape.strokeWidth;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.beginPath();
+        const first = shape.points[0];
+        if (first !== undefined) {
+          context.moveTo(first.x, first.y);
+          for (const point of shape.points.slice(1)) {
+            context.lineTo(point.x, point.y);
+          }
+        }
+        if (shape.fill !== undefined) {
+          context.fillStyle = shape.fill;
+          context.fill();
+        }
+        context.stroke();
+        break;
+      }
     }
+    context.restore();
   }
 
   return Buffer.from(canvas.toBuffer("image/png"));

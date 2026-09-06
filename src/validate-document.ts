@@ -1,10 +1,12 @@
 import {
   MAX_CANVAS_SIZE,
+  MAX_PATH_POINTS,
   MAX_SHAPES,
   PAINT_DOCUMENT_VERSION,
   type PaintCanvas,
   type PaintDocument,
   type PaintShape,
+  type PathShape,
 } from "./paint-document.ts";
 
 export class PaintValidationError extends Error {
@@ -66,6 +68,25 @@ function assertFiniteNumber(value: unknown, path: string): number {
   return num;
 }
 
+function parseOpacity(value: unknown, path: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const opacity = asNumber(value, path);
+  if (opacity < 0 || opacity > 1) {
+    throw new PaintValidationError(path, "不透明度は0〜1の数値で指定してください（省略時は1）。");
+  }
+  return opacity;
+}
+
+function withOpacity(shape: PaintShape, value: Record<string, unknown>, path: string): PaintShape {
+  const opacity = parseOpacity(value["opacity"], `${path}.opacity`);
+  if (opacity !== undefined) {
+    shape.opacity = opacity;
+  }
+  return shape;
+}
+
 function parseCanvas(value: unknown): PaintCanvas {
   if (!isRecord(value)) {
     throw new PaintValidationError("canvas", "canvasオブジェクトが必要です。");
@@ -84,27 +105,43 @@ function parseShape(value: unknown, index: number): PaintShape {
   }
   const kind = value["kind"];
   if (kind === "rect") {
-    return {
-      kind: "rect",
-      x: assertFiniteNumber(value["x"], `${path}.x`),
-      y: assertFiniteNumber(value["y"], `${path}.y`),
-      width: assertFiniteNumber(value["width"], `${path}.width`),
-      height: assertFiniteNumber(value["height"], `${path}.height`),
-      fill: assertColor(value["fill"], `${path}.fill`),
-    };
+    const width = assertFiniteNumber(value["width"], `${path}.width`);
+    const height = assertFiniteNumber(value["height"], `${path}.height`);
+    if (width < 0 || height < 0) {
+      throw new PaintValidationError(
+        path,
+        "rectの幅と高さは0以上で指定してください。負の値はPNGとSVGで描画結果が一致しないため受け付けません。",
+      );
+    }
+    return withOpacity(
+      {
+        kind: "rect",
+        x: assertFiniteNumber(value["x"], `${path}.x`),
+        y: assertFiniteNumber(value["y"], `${path}.y`),
+        width,
+        height,
+        fill: assertColor(value["fill"], `${path}.fill`),
+      },
+      value,
+      path,
+    );
   }
   if (kind === "circle") {
     const r = assertFiniteNumber(value["r"], `${path}.r`);
     if (r <= 0) {
       throw new PaintValidationError(`${path}.r`, "半径は0より大きい数値で指定してください。");
     }
-    return {
-      kind: "circle",
-      cx: assertFiniteNumber(value["cx"], `${path}.cx`),
-      cy: assertFiniteNumber(value["cy"], `${path}.cy`),
-      r,
-      fill: assertColor(value["fill"], `${path}.fill`),
-    };
+    return withOpacity(
+      {
+        kind: "circle",
+        cx: assertFiniteNumber(value["cx"], `${path}.cx`),
+        cy: assertFiniteNumber(value["cy"], `${path}.cy`),
+        r,
+        fill: assertColor(value["fill"], `${path}.fill`),
+      },
+      value,
+      path,
+    );
   }
   if (kind === "line") {
     const strokeWidth = assertFiniteNumber(value["strokeWidth"], `${path}.strokeWidth`);
@@ -114,19 +151,65 @@ function parseShape(value: unknown, index: number): PaintShape {
         "線幅は0より大きい数値で指定してください。",
       );
     }
-    return {
-      kind: "line",
-      x1: assertFiniteNumber(value["x1"], `${path}.x1`),
-      y1: assertFiniteNumber(value["y1"], `${path}.y1`),
-      x2: assertFiniteNumber(value["x2"], `${path}.x2`),
-      y2: assertFiniteNumber(value["y2"], `${path}.y2`),
+    return withOpacity(
+      {
+        kind: "line",
+        x1: assertFiniteNumber(value["x1"], `${path}.x1`),
+        y1: assertFiniteNumber(value["y1"], `${path}.y1`),
+        x2: assertFiniteNumber(value["x2"], `${path}.x2`),
+        y2: assertFiniteNumber(value["y2"], `${path}.y2`),
+        stroke: assertColor(value["stroke"], `${path}.stroke`),
+        strokeWidth,
+      },
+      value,
+      path,
+    );
+  }
+  if (kind === "path") {
+    const pointsValue = value["points"];
+    if (!Array.isArray(pointsValue)) {
+      throw new PaintValidationError(
+        `${path}.points`,
+        "points は2点以上の座標配列で指定してください。",
+      );
+    }
+    if (pointsValue.length < 2 || pointsValue.length > MAX_PATH_POINTS) {
+      throw new PaintValidationError(
+        `${path}.points`,
+        `points は2〜${String(MAX_PATH_POINTS)}点で指定してください。`,
+      );
+    }
+    const points = pointsValue.map((item: unknown, pointIndex: number) => {
+      const pointPath = `${path}.points[${String(pointIndex)}]`;
+      if (!isRecord(item)) {
+        throw new PaintValidationError(pointPath, "点は { x, y } で指定してください。");
+      }
+      return {
+        x: assertFiniteNumber(item["x"], `${pointPath}.x`),
+        y: assertFiniteNumber(item["y"], `${pointPath}.y`),
+      };
+    });
+    const strokeWidth = assertFiniteNumber(value["strokeWidth"], `${path}.strokeWidth`);
+    if (strokeWidth <= 0) {
+      throw new PaintValidationError(
+        `${path}.strokeWidth`,
+        "線幅は0より大きい数値で指定してください。",
+      );
+    }
+    const fillValue = value["fill"];
+    const fill = fillValue === undefined ? undefined : assertColor(fillValue, `${path}.fill`);
+    const shape: PathShape = {
+      kind: "path",
+      points,
       stroke: assertColor(value["stroke"], `${path}.stroke`),
       strokeWidth,
+      ...(fill === undefined ? {} : { fill }),
     };
+    return withOpacity(shape, value, path);
   }
   throw new PaintValidationError(
     `${path}.kind`,
-    '図形種別は "rect" / "circle" / "line" のいずれかで指定してください。',
+    '図形種別は "rect" / "circle" / "line" / "path" のいずれかで指定してください。',
   );
 }
 

@@ -125,13 +125,17 @@ export function buildPreviewHtml(): string {
     var POLL_MS = ${String(PREVIEW_POLL_MS)};
 
     function describeShape(shape, index) {
+      var opacity = shape.opacity === undefined ? "" : " opacity=" + shape.opacity;
       if (shape.kind === "rect") {
-        return "#" + index + " rect x=" + shape.x + " y=" + shape.y + " " + shape.width + "x" + shape.height + " " + shape.fill;
+        return "#" + index + " rect x=" + shape.x + " y=" + shape.y + " " + shape.width + "x" + shape.height + " " + shape.fill + opacity;
       }
       if (shape.kind === "circle") {
-        return "#" + index + " circle cx=" + shape.cx + " cy=" + shape.cy + " r=" + shape.r + " " + shape.fill;
+        return "#" + index + " circle cx=" + shape.cx + " cy=" + shape.cy + " r=" + shape.r + " " + shape.fill + opacity;
       }
-      return "#" + index + " line (" + shape.x1 + "," + shape.y1 + ")-(" + shape.x2 + "," + shape.y2 + ") " + shape.stroke + " w=" + shape.strokeWidth;
+      if (shape.kind === "line") {
+        return "#" + index + " line (" + shape.x1 + "," + shape.y1 + ")-(" + shape.x2 + "," + shape.y2 + ") " + shape.stroke + " w=" + shape.strokeWidth + opacity;
+      }
+      return "#" + index + " path " + shape.points.length + "点 " + shape.stroke + " w=" + shape.strokeWidth + opacity;
     }
 
     function renderDocument(doc) {
@@ -145,6 +149,10 @@ export function buildPreviewHtml(): string {
       ctx.fillRect(0, 0, doc.canvas.width, doc.canvas.height);
       for (var i = 0; i < doc.shapes.length; i += 1) {
         var shape = doc.shapes[i];
+        ctx.save();
+        if (shape.opacity !== undefined) {
+          ctx.globalAlpha = shape.opacity;
+        }
         if (shape.kind === "rect") {
           ctx.fillStyle = shape.fill;
           ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
@@ -160,7 +168,25 @@ export function buildPreviewHtml(): string {
           ctx.moveTo(shape.x1, shape.y1);
           ctx.lineTo(shape.x2, shape.y2);
           ctx.stroke();
+        } else if (shape.kind === "path") {
+          ctx.strokeStyle = shape.stroke;
+          ctx.lineWidth = shape.strokeWidth;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.beginPath();
+          if (shape.points.length > 0) {
+            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+            for (var j = 1; j < shape.points.length; j += 1) {
+              ctx.lineTo(shape.points[j].x, shape.points[j].y);
+            }
+          }
+          if (shape.fill !== undefined) {
+            ctx.fillStyle = shape.fill;
+            ctx.fill();
+          }
+          ctx.stroke();
         }
+        ctx.restore();
       }
     }
 

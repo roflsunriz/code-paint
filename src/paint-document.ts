@@ -2,6 +2,7 @@ export const PAINT_DOCUMENT_VERSION = 1 as const;
 
 export const MAX_CANVAS_SIZE = 4096;
 export const MAX_SHAPES = 10000;
+export const MAX_PATH_POINTS = 10000;
 
 export interface PaintCanvas {
   width: number;
@@ -16,6 +17,7 @@ export interface RectShape {
   width: number;
   height: number;
   fill: string;
+  opacity?: number;
 }
 
 export interface CircleShape {
@@ -24,6 +26,7 @@ export interface CircleShape {
   cy: number;
   r: number;
   fill: string;
+  opacity?: number;
 }
 
 export interface LineShape {
@@ -34,9 +37,24 @@ export interface LineShape {
   y2: number;
   stroke: string;
   strokeWidth: number;
+  opacity?: number;
 }
 
-export type PaintShape = RectShape | CircleShape | LineShape;
+export interface PathPoint {
+  x: number;
+  y: number;
+}
+
+export interface PathShape {
+  kind: "path";
+  points: PathPoint[];
+  stroke: string;
+  strokeWidth: number;
+  fill?: string;
+  opacity?: number;
+}
+
+export type PaintShape = RectShape | CircleShape | LineShape | PathShape;
 
 export interface PaintDocument {
   version: typeof PAINT_DOCUMENT_VERSION;

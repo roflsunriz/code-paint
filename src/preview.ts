@@ -68,10 +68,19 @@ export async function run(argv: readonly string[]): Promise<void> {
     printUsage();
     return;
   }
-  const server = startPreviewServer({
-    inputPath: options.input,
-    port: options.port,
-  });
+  let server;
+  try {
+    server = startPreviewServer({
+      inputPath: options.input,
+      port: options.port,
+    });
+  } catch (error) {
+    console.error(
+      `プレビューサーバを起動できませんでした (${toErrorMessage(error)})。--port を変えて再試行してください。`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.log(
     `プレビューを開いてください: http://localhost:${String(server.port)}/ （入力: ${options.input}、終了は Ctrl+C）`,
   );

@@ -39,6 +39,31 @@ describe("renderDocumentToSvg", () => {
     expect(renderDocumentToSvg(SAMPLE)).toBe(renderDocumentToSvg(SAMPLE));
   });
 
+  test("pathとopacityを写像する", () => {
+    const document: PaintDocument = {
+      version: 1,
+      canvas: { width: 100, height: 100, background: "#ffffff" },
+      shapes: [
+        {
+          kind: "path",
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 10 },
+            { x: 20, y: 0 },
+          ],
+          stroke: "#000000",
+          strokeWidth: 3,
+          fill: "#ff0000",
+          opacity: 0.5,
+        },
+      ],
+    };
+    const svg = renderDocumentToSvg(document);
+    expect(svg).toContain(
+      '<path d="M0 0 L10 10 L20 0" fill="#ff0000" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>',
+    );
+  });
+
   test("実サンプルとPNG描画が同じ図形件数・寸法を表す", async () => {
     const raw = await readFile("examples/hello.json", "utf-8");
     const document = parsePaintDocument(JSON.parse(raw) as unknown);

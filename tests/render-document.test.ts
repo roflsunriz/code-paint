@@ -39,4 +39,41 @@ describe("renderDocumentToPng", () => {
     expect(await readPixel(png, 4, 16)).toEqual([255, 0, 0, 255]);
     expect(await readPixel(png, 24, 16)).toEqual([255, 255, 255, 255]);
   });
+
+  test("pathの線がピクセルに反映される", async () => {
+    const document: PaintDocument = {
+      version: 1,
+      canvas: { width: 32, height: 32, background: "#ffffff" },
+      shapes: [
+        {
+          kind: "path",
+          points: [
+            { x: 2, y: 16 },
+            { x: 30, y: 16 },
+          ],
+          stroke: "#0000ff",
+          strokeWidth: 5,
+        },
+      ],
+    };
+    const png = renderDocumentToPng(document);
+    expect(await readPixel(png, 16, 16)).toEqual([0, 0, 255, 255]);
+    expect(await readPixel(png, 16, 2)).toEqual([255, 255, 255, 255]);
+  });
+
+  test("opacityは下地と混ざった色になる", async () => {
+    const document: PaintDocument = {
+      version: 1,
+      canvas: { width: 32, height: 32, background: "#ffffff" },
+      shapes: [{ kind: "rect", x: 0, y: 0, width: 32, height: 32, fill: "#ff0000", opacity: 0.5 }],
+    };
+    const png = renderDocumentToPng(document);
+    const [r, g, b, a] = await readPixel(png, 16, 16);
+    expect(r).toBe(255);
+    expect(a).toBe(255);
+    expect(g).toBeGreaterThan(100);
+    expect(g).toBeLessThan(160);
+    expect(b).toBeGreaterThan(100);
+    expect(b).toBeLessThan(160);
+  });
 });

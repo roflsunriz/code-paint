@@ -25,6 +25,58 @@ describe("parsePaintDocument", () => {
     expect(document.shapes).toHaveLength(3);
   });
 
+  test("pathとopacityを受け付ける", () => {
+    const document = parsePaintDocument({
+      version: 1,
+      canvas: { width: 100, height: 100, background: "#ffffff" },
+      shapes: [
+        {
+          kind: "path",
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 10 },
+            { x: 20, y: 0 },
+          ],
+          stroke: "#000000",
+          strokeWidth: 3,
+          opacity: 0.5,
+        },
+      ],
+    });
+    expect(document.shapes).toHaveLength(1);
+    const shape = document.shapes[0];
+    expect(shape?.kind).toBe("path");
+    expect(shape?.opacity).toBe(0.5);
+  });
+
+  test("負の幅・高さのrectはPNGとSVGの不一致を防ぐため拒否する", () => {
+    expect(() =>
+      parsePaintDocument({
+        version: 1,
+        canvas: { width: 32, height: 32, background: "#ffffff" },
+        shapes: [{ kind: "rect", x: 20, y: 20, width: -10, height: 5, fill: "#ff0000" }],
+      }),
+    ).toThrow(/0以上/);
+  });
+
+  test("1点以下のpathと範囲外のopacityを拒否する", () => {
+    const canvas = { width: 32, height: 32, background: "#ffffff" };
+    expect(() =>
+      parsePaintDocument({
+        version: 1,
+        canvas,
+        shapes: [{ kind: "path", points: [{ x: 0, y: 0 }], stroke: "#000", strokeWidth: 2 }],
+      }),
+    ).toThrow(/2〜/);
+    expect(() =>
+      parsePaintDocument({
+        version: 1,
+        canvas,
+        shapes: [{ kind: "rect", x: 0, y: 0, width: 4, height: 4, fill: "#fff", opacity: 2 }],
+      }),
+    ).toThrow(/0〜1/);
+  });
+
   test("version不一致は旧データとして拒否する", () => {
     expect(() =>
       parsePaintDocument({
@@ -52,6 +104,6 @@ describe("parsePaintDocument", () => {
         canvas: { width: 10, height: 10, background: "#ffffff" },
         shapes: [{ kind: "star" }],
       }),
-    ).toThrow(/rect.*circle.*line/);
+    ).toThrow(/rect.*circle.*line.*path/);
   });
 });

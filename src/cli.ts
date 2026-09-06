@@ -101,11 +101,19 @@ export async function run(argv: readonly string[]): Promise<void> {
   }
 
   const png = renderDocumentToPng(document);
-  await mkdir(dirname(options.output), { recursive: true });
-  await writeFile(options.output, png);
-  if (options.svg !== undefined) {
-    await mkdir(dirname(options.svg), { recursive: true });
-    await writeFile(options.svg, renderDocumentToSvg(document), "utf-8");
+  try {
+    await mkdir(dirname(options.output), { recursive: true });
+    await writeFile(options.output, png);
+    if (options.svg !== undefined) {
+      await mkdir(dirname(options.svg), { recursive: true });
+      await writeFile(options.svg, renderDocumentToSvg(document), "utf-8");
+    }
+  } catch (error) {
+    console.error(
+      `出力ファイルに書き込めませんでした (${toErrorMessage(error)})。出力先のパスと書き込み権限を確認してください。`,
+    );
+    process.exitCode = 1;
+    return;
   }
   console.log(
     `出力しました: ${options.output} (${String(document.canvas.width)}x${String(document.canvas.height)}, 図形${String(document.shapes.length)}件)`,

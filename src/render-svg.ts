@@ -1,15 +1,30 @@
 import type { PaintDocument, PaintShape } from "./paint-document.ts";
 
+function opacityAttribute(opacity: number | undefined): string {
+  return opacity === undefined ? "" : ` opacity="${String(opacity)}"`;
+}
+
 function shapeToSvg(shape: PaintShape): string {
   switch (shape.kind) {
     case "rect": {
-      return `<rect x="${String(shape.x)}" y="${String(shape.y)}" width="${String(shape.width)}" height="${String(shape.height)}" fill="${shape.fill}"/>`;
+      return `<rect x="${String(shape.x)}" y="${String(shape.y)}" width="${String(shape.width)}" height="${String(shape.height)}" fill="${shape.fill}"${opacityAttribute(shape.opacity)}/>`;
     }
     case "circle": {
-      return `<circle cx="${String(shape.cx)}" cy="${String(shape.cy)}" r="${String(shape.r)}" fill="${shape.fill}"/>`;
+      return `<circle cx="${String(shape.cx)}" cy="${String(shape.cy)}" r="${String(shape.r)}" fill="${shape.fill}"${opacityAttribute(shape.opacity)}/>`;
     }
     case "line": {
-      return `<line x1="${String(shape.x1)}" y1="${String(shape.y1)}" x2="${String(shape.x2)}" y2="${String(shape.y2)}" stroke="${shape.stroke}" stroke-width="${String(shape.strokeWidth)}"/>`;
+      return `<line x1="${String(shape.x1)}" y1="${String(shape.y1)}" x2="${String(shape.x2)}" y2="${String(shape.y2)}" stroke="${shape.stroke}" stroke-width="${String(shape.strokeWidth)}"${opacityAttribute(shape.opacity)}/>`;
+    }
+    case "path": {
+      const first = shape.points[0];
+      const rest = shape.points
+        .slice(1)
+        .map((point) => `L${String(point.x)} ${String(point.y)}`)
+        .join(" ");
+      const start = first === undefined ? "" : `M${String(first.x)} ${String(first.y)}`;
+      const segments = rest === "" ? start : `${start} ${rest}`;
+      const fill = shape.fill ?? "none";
+      return `<path d="${segments}" fill="${fill}" stroke="${shape.stroke}" stroke-width="${String(shape.strokeWidth)}" stroke-linecap="round" stroke-linejoin="round"${opacityAttribute(shape.opacity)}/>`;
     }
   }
 }

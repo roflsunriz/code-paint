@@ -1,23 +1,27 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { renderDocumentToPng } from "./render-document.ts";
+import { renderDocumentToSvg } from "./render-svg.ts";
 import { PaintValidationError, parsePaintDocument } from "./validate-document.ts";
 
 interface CliOptions {
   input: string;
   output: string;
+  svg: string | undefined;
 }
 
 function printUsage(): void {
-  console.log(`使い方: bun run src/cli.ts -- --input <入力JSON> --output <出力PNG>
+  console.log(`使い方: bun run src/cli.ts -- --input <入力JSON> --output <出力PNG> [--svg <出力SVG>]
 
 JSON DSLで記述したイラストをヘッドレスでPNGへ変換します。
-例: bun run src/cli.ts -- --input examples/hello.json --output out/hello.png`);
+--svg を付けると、画像を見られないエージェント向けに同一内容のSVGテキストも出力します。
+例: bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg`);
 }
 
 function parseArgs(args: readonly string[]): CliOptions | null {
   let input: string | undefined;
   let output: string | undefined;
+  let svg: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === undefined) {
@@ -28,6 +32,9 @@ function parseArgs(args: readonly string[]): CliOptions | null {
       index += 1;
     } else if (arg === "--output") {
       output = args[index + 1];
+      index += 1;
+    } else if (arg === "--svg") {
+      svg = args[index + 1];
       index += 1;
     } else if (arg === "--help" || arg === "-h") {
       return null;
@@ -44,7 +51,7 @@ function parseArgs(args: readonly string[]): CliOptions | null {
       "--input <入力JSON> と --output <出力PNG> の両方を指定してください。",
     );
   }
-  return { input, output };
+  return { input, output, svg };
 }
 
 function toErrorMessage(error: unknown): string {
@@ -96,6 +103,10 @@ export async function run(argv: readonly string[]): Promise<void> {
   const png = renderDocumentToPng(document);
   await mkdir(dirname(options.output), { recursive: true });
   await writeFile(options.output, png);
+  if (options.svg !== undefined) {
+    await mkdir(dirname(options.svg), { recursive: true });
+    await writeFile(options.svg, renderDocumentToSvg(document), "utf-8");
+  }
   console.log(
     `出力しました: ${options.output} (${String(document.canvas.width)}x${String(document.canvas.height)}, 図形${String(document.shapes.length)}件)`,
   );

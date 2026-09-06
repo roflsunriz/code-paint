@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { buildDocumentPayload, type DocumentPayload } from "./preview-payload.ts";
 import { buildPreviewHtml } from "./preview-page.ts";
+import { renderDocumentToSvg } from "./render-svg.ts";
 
 export interface PreviewServerOptions {
   inputPath: string;
@@ -46,6 +47,25 @@ export function startPreviewServer(options: PreviewServerOptions): PreviewServer
               },
             }),
         );
+      }
+      if (url.pathname === "/svg") {
+        return readPayload(options.inputPath).then((payload) => {
+          if (!payload.ok) {
+            return new Response(JSON.stringify({ ok: false, error: payload.error }), {
+              status: 400,
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+                "cache-control": "no-store",
+              },
+            });
+          }
+          return new Response(renderDocumentToSvg(payload.document), {
+            headers: {
+              "content-type": "image/svg+xml; charset=utf-8",
+              "cache-control": "no-store",
+            },
+          });
+        });
       }
       if (url.pathname === "/" || url.pathname === "/index.html") {
         return new Response(buildPreviewHtml(), {

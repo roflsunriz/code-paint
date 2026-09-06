@@ -12,6 +12,12 @@ bun install
 bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
 ```
 
+画像を見られないエージェント向けに、同一内容のSVGテキストも出力できる。
+
+```powershell
+bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
+```
+
 入力JSON（v0最小仕様）:
 
 ```json
@@ -30,6 +36,7 @@ bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
 - 色は `#RGB` / `#RRGGBB` / `#RRGGBBAA` 形式。
 - 対応図形（v0）: `rect` / `circle` / `line`。ブラシ・レイヤー・バケツ塗りは今後の仕様策定対象。
 - エラー時は原因と次の行動が分かる日本語メッセージを出す（例: 色形式、必須引数の不足）。
+- 描画結果はPNG（画像）とSVG（コード）の両方で受け取れる。SVGは決定的なテキストのため、画像を見られないエージェントでも厳密な文字列比較・diffで検証できる。
 
 ## ブラウザプレビュー
 
@@ -46,6 +53,8 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 
 入力ファイルを保存すると約500ms間隔の取得で自動更新される。不正なJSONや検証NGの入力でもサーバは落ちず、画面にエラーが表示される。サーバは `127.0.0.1` のみで待ち受け、終了は Ctrl+C。
 
+画像を見られないエージェントは `http://localhost:8901/svg` から同一内容のSVGテキストを取得できる（異常入力時は400番台のJSONエラー）。
+
 ## 開発者向け
 
 構成:
@@ -53,9 +62,10 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 - `src/paint-document.ts` - DSLの型定義
 - `src/validate-document.ts` - `unknown` からの厳密な検証（`any` 不使用）
 - `src/render-document.ts` - `@napi-rs/canvas` によるPNG描画
-- `src/cli.ts` - CLI（`--input` / `--output` / `--help`）
+- `src/render-svg.ts` - SVGテキスト描画（PNGと同一セマンティクス、決定的出力、新規依存なし）
+- `src/cli.ts` - CLI（`--input` / `--output` / `--svg` / `--help`）
 - `src/preview.ts` - プレビューサーバのCLI（`--input` / `--port` / `--help`）
-- `src/preview-server.ts` - `/` と `/document` を返すBunサーバ（`127.0.0.1` のみ）
+- `src/preview-server.ts` - `/` と `/document` と `/svg` を返すBunサーバ（`127.0.0.1` のみ）
 - `src/preview-payload.ts` - 配信用ペイロードの純粋関数（異常入力もエラー表示用に返す）
 - `src/preview-page.ts` - プレビュー画面のHTML生成（Canvas描画・命令表示・約500ms取得）
 - `tests/` - `bun test` による検証・退行テスト

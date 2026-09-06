@@ -41,6 +41,28 @@ describe("preview-server", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toMatch(/読めません/);
   });
+
+  test("/svg は同一内容のSVGテキストを返す", async () => {
+    server = startPreviewServer({ inputPath: "examples/hello.json", port: 0 });
+    const response = await fetch(`http://127.0.0.1:${String(server.port)}/svg`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("image/svg+xml");
+    const svg = await response.text();
+    expect(svg).toContain("<svg");
+    expect(svg).toContain('<rect x="20" y="30" width="120" height="80" fill="#ff0000"/>');
+    expect(svg).toContain('<circle cx="220" cy="100" r="48" fill="#0000ff"/>');
+  });
+
+  test("/svg は存在しない入力で400のJSONエラーを返す", async () => {
+    server = startPreviewServer({
+      inputPath: "examples/存在しない.json",
+      port: 0,
+    });
+    const response = await fetch(`http://127.0.0.1:${String(server.port)}/svg`);
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { ok: boolean; error: string };
+    expect(payload.ok).toBe(false);
+  });
 });
 
 describe("preview-page", () => {

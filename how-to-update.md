@@ -12,6 +12,12 @@ bun install
 bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
 ```
 
+SVGテキストも必要な場合:
+
+```powershell
+bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
+```
+
 プレビューを使う場合:
 
 ```powershell

@@ -50,6 +50,8 @@ bun run examples/butter-adventure.ts --live http://localhost:8901
 
 出力は `out/butter-adventure/`。`--live` は上と同じく、指定したサーバーの作品を置き換えて逐次描画します。
 
+設定動画を使った観察と衣装・表情の修正根拠は [バターの動画分析](docs/butter-video-study.md) にタイムコード付きでまとめています。
+
 ## JSON DSL v3
 
 ```json

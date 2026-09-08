@@ -20,21 +20,24 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 
 ## 実装メモ（作業で確定した事項のみ）
 
-- 実行基盤は Bun 1.x + TypeScript（strict）。`bun run lint` / `format` / `type-check` / `build` / `test` を必ず用意する（`package.json` 参照）。
-- ヘッドレス描画は `@napi-rs/canvas@1.0.8` を採用。根拠: MIT、型定義同梱（`./index.d.ts`）、直近リリース2026-08-24、プリビルド配布でWindows導入が軽い。`canvas@3.2.3` はネイティブ依存が重く、`skia-canvas@3.0.8` は更新が2025-09-25で古いため不採用。
-- CLIは `bun run src/cli.ts -- --input <JSON> --output <PNG>`。`out/`、`dist/`、`node_modules/` は生成物として `.gitignore` 済み。
-- DSLは `version: 2` 固定、色は `#RGB/#RRGGBB/#RRGGBBAA` のみ、寸法上限4096・図形上限10000・path点数上限10000。旧データは明示的マイグレーション対象（`src/validate-document.ts` の `migrateV1ToV2Document` と `src/migrate.ts`）。v1図形は線画として取り込み、現在フェーズは線画からやり直す。
-- 図形は `rect/circle/line/path`、全図形に必須 `phase`（`lineart/base/shadow/reflection/background`）と任意 `opacity`（0〜1）。ドキュメントは現在 `phase` を持つ。検証では配列の作業順（線画→バケツ塗り→影→反射→背景）の非減少と現在フェーズ超過の禁止を強制する。描画順は層固定（背景→塗り→影→反射→線画）でPNG/SVG/プレビューが一致する。
-- バケツ塗りはラスタ flood fill を高さ1の `rect` 束（`phase: base`）へ展開して保存し、ベクタ描画の一致を保つ（`src/bucket-fill.ts`、既定許容16・0〜255、決定的出力、新規依存なし）。`base` 相でのみ実行できる。
-- 逐次描画は `POST /shapes`（現フェーズのみ受付）、フェーズ進行は `POST /phase`（一段ずつ・飛ばし戻り不可）、塗りは `POST /bucket`、消去は `DELETE /shapes`（線画へ復帰）で行う（`src/preview-server.ts`）。
-- ESLintの `restrict-template-expressions` により、テンプレート内の数値は `String()` で明示変換する（文字列は変換不要）。
-- PNG確認は先頭8バイト `137,80,78,71,13,10,26,10` で行う（`verification.md` 参照）。
-- プレビューは `bun run src/preview.ts -- --input <JSON> --port 8901` で起動し、`http://localhost:8901/` で確認する。サーバは `Bun.serve` で `127.0.0.1` のみ待ち受け、入力は要求ごとに読み直すためファイル保存で約500ms間隔の取得により自動更新される（`src/preview-server.ts`、`src/preview-payload.ts`、`src/preview-page.ts`）。
-- 逐次描画は `POST /shapes`（`{"shape": {...}}` / `{"shapes": [...]}`）で入力JSONへ追記し、`DELETE /shapes` で全消去する。追記・消去はファイルを直接更新するため `/document`・`/svg`・CLI出力と連動する。単発検証は `parsePaintShape`（`src/validate-document.ts`）を使う。
-- リファレンス画像は `--reference <画像パス>` で指定し、画面の `reference-image` 枠と `GET /reference`（未設定・紛失時は404JSON）で受け渡す（`src/preview-server.ts`、`src/preview-page.ts`）。
-- 受け取った命令欄は固定高さ240pxのスクロール表示（`shape-scroll`・`command-json`）で、更新時に末尾へ自動スクロールし、図形一覧は最新200件（`PREVIEW_MAX_LIST_ITEMS`）のみ表示する。
-- Bunでは `process.exitCode = undefined` の代入で終了コードが元に戻らない。失敗系テストの後始末は `0` の明示代入で行う（`tests/cli.test.ts`）。
-- プレビュー画面の要素特定は `data-*` 属性（`paint-canvas`、`command-json`、`shape-list`、`preview-status`、`preview-error`）を使う。表示文言に依存しない。
-- 実ブラウザ確認は一時プロファイルのヘッドレスChromeで行う（`--user-data-dir` に一時ディレクトリ、`--screenshot` / `--dump-dom`）。ツール呼び出しをまたいで常駐させたいサーバは、バックグラウンドジョブではなく単一コマンド内で `Start-Process` 起動・検証・停止まで行う。
-- コード受領手段としてSVGを用意する。`src/render-svg.ts` はPNG描画と同一セマンティクスの決定的テキストを返し、CLIの `--svg` とプレビューの `/svg`（異常時は400番台JSON）で配信する。新規依存は持たせない。
-- 人物や髪などの有機的な形は、太いstrokeの一定幅pathだとチューブ状になる。塗りつぶしpathで輪郭を取り、曲線はBezierを折れ線近似する。顔を隠す部品（ヘッドホン等）は顔の正面ではなく横に置く。
+- 実行基盤はBun 1.x + strict TypeScript、ヘッドレス描画は `@napi-rs/canvas@1.0.8`。`bun run lint` / `format` / `type-check` / `build` / `test` を維持する。精密描画サンプルのTypeScriptもlintと型検査の対象。
+- CLIは `bun run src/cli.ts -- --input <JSON> --output <PNG> [--svg <SVG>] [--crop x,y,width,height] [--scale 倍率]`。crop/scaleはPNGだけに適用し、SVGは全体を保存する。出力寸法はPNGの実寸を表示する。
+- DSLはv3固定。v1/v2は `migrateToCurrentDocument` と移行CLIで明示変換する。旧図形の既知属性だけを拾い、旧版で無視されたhidden/transform/clip等を新機能として有効化しない。v2のphase表示rankをlayerに保存して見た目を保持する。
+- ユーザーの2026-09-08の方針変更により、phaseは作業ガイドになった。作業順強制・別工程の追加禁止は廃止し、自由に戻る・飛ばす・修正が可能。表示順は数値layer優先(省略時background=0,base=1,shadow=2,reflection=3,lineart=4)、同値は配列順。
+- 図形はrect/circle/line/path/curve。curveとclipは絶対座標M/L/Q/C/Z。CanvasとSVGの両方でネイティブベジェ描画する。曲線/pathのstrokeWidth=0は線なし。全図形にid/group/layer/hidden/clip/transform/opacityを指定可能。
+- fillは16進色またはlinear/radial gradient。色は#RGB/#RRGGBB/#RRGGBBAA。上限は各辺4096px、図形10000、path点/curve命令10000、幾何数値の絶対値100万。巨大な有限数値でもネイティブgradient描画例外を起こすため有界検証する。
+- clip・gradientは図形ローカル座標。transformと一緒に作用する。groupは図形集合で、独立したオフスクリーン合成層ではない。一括transformは行列の置換、一括opacityは各図形への設定。
+- PNGとbucketは `renderDocumentToCanvas` を共有。regionオプション(x/y/width/height/scale)による局所拡大は元図形から再描画し、原寸PNGの引き伸ばしにしない。
+- SVGのgradient stopは8桁hexをstop-colorとstop-opacityへ分離する（画像デコーダのalpha解釈差対策）。半透明のpath塗りと線はCanvasの2回合成と合わせ、SVGでもfill-opacity/stroke-opacityへ分ける。tests/drawing-v3.test.tsで内部画素対応を確認。
+- バケツ塗りは描画結果のRGBA連続領域を高さ1のrect束へ展開して保存する。許容差は既定16・0〜255。工程は問わない。APIでlayerを指定可能。PNG/SVGの領域が一致する。
+- プレビュー起動は `bun run src/preview.ts -- --input <JSON> --port 8901 --reference <画像パス>`。127.0.0.1で待ち受け、約500msで外部保存・API編集を反映。参照はGET /reference、未設定/紛失時404。参照は比較専用で作品のexportに含めない。
+- 編集APIはPOST /shapes、PATCH/DELETE /shapes/:id、PATCH/DELETE /groups/:group、PUT /document、POST /phase、POST /bucket、POST /undo・/redo。PATCHは平坦な部分JSONで、optionalをnullで解除。id/kind変更は拒否。GET /historyで履歴可否を取得。
+- `PreviewStore` はAPI編集を直列化し、全文検証後に一時ファイル→renameで保存。外部保存を検出すると履歴をリセット、保存競合は409。履歴はセッション内100件/32MiB。壊れたJSONを空データで上書きせず、修正または保存コピーから復旧する。
+- ID省略の既存JSONはGETで決定的なshape-Nを投影して次の編集時に永続化。APIの新規追加の自動IDはUUIDで、削除後に旧IDを別の図形へ再利用しない。古い選択からのPATCHで別部品を修正することを防ぐ。
+- プレビューはSVGを読みCanvasへ描画する。取得前後のdocument hashを照合し、更新中に異なる版の描画を混ぜない。参照cropは元画像px、縦横比を保って作品枠へfit。ブラウザ表示設定はlocalStorage保存。
+- UI要素特定はdata-testidを使う。paint-canvas/reference-canvas、compare-mode、crop-x/y/width/height、canvas-zoom、view-fit、shape-search、shape-patch、group-patch、phase-select、undo/redo等。表示文言に依存させない。
+- GET /render.pngはx/y/width/height/scaleだけをqueryに受け付ける。UIのキャッシュ用hash等を付加すると未知パラメーターとして拒否されるため、クライアントとAPIの接続テストを保つ。
+- ESLint restrict-template-expressionsではテンプレート内の数値をString()で変換する。Bunのテスト後始末で終了コードを戻す場合は0を明示代入する（undefinedでは元に戻らない）。
+- 人物は閉じた曲線の輪郭・塗りで描き、ヘッドセット等は顔横に置く。首と襟は境界を接するだけにせず、首を襟の下へ延ばして重ねると白い隙間を防げる（examples/miku-study.ts）。
+- まつ毛のハネのように接続が必要な部位は本体と同じ閉じたパスへ含める。別々の輪郭を端で接するだけだと隙間が見えるため、局所拡大でも接続を確認する。
+- out/dist/node_modules/subagentsはGit管理外。描画の生成元をexamplesへ保存し、PNG/SVG/JSONをoutへ出力する。PNGシグネチャは137,80,78,71,13,10,26,10。検証観点はverification.mdを参照。

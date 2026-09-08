@@ -99,8 +99,6 @@ export async function run(argv: readonly string[]): Promise<void> {
   await new Promise((): void => {});
 }
 
-const invokedDirectly =
-  typeof process.argv[1] === "string" && process.argv[1].endsWith("preview.ts");
-if (invokedDirectly) {
+if (import.meta.main) {
   await run(process.argv.slice(2));
 }

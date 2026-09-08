@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "canvas": { "width": 320, "height": 200, "background": "#ffffff" },
   "phase": "base",
   "shapes": [

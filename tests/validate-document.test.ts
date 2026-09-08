@@ -4,7 +4,7 @@ import { parsePaintDocument } from "../src/validate-document.ts";
 describe("parsePaintDocument", () => {
   test("最小の正常ドキュメントを受け付ける", () => {
     const document = parsePaintDocument({
-      version: 2,
+      version: 3,
       canvas: { width: 64, height: 48, background: "#ffffff" },
       phase: "lineart",
       shapes: [],
@@ -15,7 +15,7 @@ describe("parsePaintDocument", () => {
 
   test("3種の図形を受け付ける", () => {
     const document = parsePaintDocument({
-      version: 2,
+      version: 3,
       canvas: { width: 100, height: 100, background: "#000000" },
       phase: "base",
       shapes: [
@@ -38,7 +38,7 @@ describe("parsePaintDocument", () => {
 
   test("pathとopacityを受け付ける", () => {
     const document = parsePaintDocument({
-      version: 2,
+      version: 3,
       canvas: { width: 100, height: 100, background: "#ffffff" },
       phase: "lineart",
       shapes: [
@@ -65,7 +65,7 @@ describe("parsePaintDocument", () => {
   test("負の幅・高さのrectはPNGとSVGの不一致を防ぐため拒否する", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 32, height: 32, background: "#ffffff" },
         phase: "lineart",
         shapes: [
@@ -79,7 +79,7 @@ describe("parsePaintDocument", () => {
     const canvas = { width: 32, height: 32, background: "#ffffff" };
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas,
         phase: "lineart",
         shapes: [
@@ -95,7 +95,7 @@ describe("parsePaintDocument", () => {
     ).toThrow(/2〜/);
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas,
         phase: "base",
         shapes: [
@@ -127,7 +127,7 @@ describe("parsePaintDocument", () => {
   test("version不一致は旧データとして拒否する", () => {
     expect(() =>
       parsePaintDocument({
-        version: 3,
+        version: 99,
         canvas: { width: 10, height: 10, background: "#ffffff" },
         phase: "lineart",
         shapes: [],
@@ -138,7 +138,7 @@ describe("parsePaintDocument", () => {
   test("不正な色は次の行動が分かるエラーにする", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 10, height: 10, background: "red" },
         phase: "lineart",
         shapes: [],
@@ -149,7 +149,7 @@ describe("parsePaintDocument", () => {
   test("未知の図形種別を拒否する", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 10, height: 10, background: "#ffffff" },
         phase: "lineart",
         shapes: [{ kind: "star", phase: "lineart" }],
@@ -160,7 +160,7 @@ describe("parsePaintDocument", () => {
   test("フェーズなしの図形を拒否する", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 10, height: 10, background: "#ffffff" },
         phase: "lineart",
         shapes: [{ kind: "rect", x: 0, y: 0, width: 4, height: 4, fill: "#fff" }],
@@ -168,10 +168,10 @@ describe("parsePaintDocument", () => {
     ).toThrow(/フェーズ/);
   });
 
-  test("作業順を逆行する図形配列を拒否する", () => {
+  test("作業順を逆行する図形配列を受け付ける", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 32, height: 32, background: "#ffffff" },
         phase: "base",
         shapes: [
@@ -188,17 +188,17 @@ describe("parsePaintDocument", () => {
           },
         ],
       }),
-    ).toThrow(/作業順/);
+    ).not.toThrow();
   });
 
-  test("現在フェーズより先の図形を拒否する", () => {
+  test("現在フェーズより先の図形を受け付ける", () => {
     expect(() =>
       parsePaintDocument({
-        version: 2,
+        version: 3,
         canvas: { width: 32, height: 32, background: "#ffffff" },
         phase: "lineart",
         shapes: [{ kind: "rect", phase: "base", x: 0, y: 0, width: 4, height: 4, fill: "#ff0000" }],
       }),
-    ).toThrow(/超えた図形/);
+    ).not.toThrow();
   });
 });

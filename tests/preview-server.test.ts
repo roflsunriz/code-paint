@@ -66,19 +66,12 @@ describe("preview-server", () => {
 });
 
 describe("preview-page", () => {
-  test("3種の図形の描画分岐を含み、ポーリングで自動更新する", () => {
+  test("SVG描画をCanvasへ取り込みポーリングで自動更新する", () => {
     const html = buildPreviewHtml();
-    expect(html).toContain("rect");
-    expect(html).toContain("circle");
+    expect(html).toContain("/svg");
+    expect(html).toContain("drawImage");
     expect(html).toContain("setInterval");
     expect(html).toContain("/document");
-  });
-
-  test("path図形の描画分岐と一覧表示を含む", () => {
-    const html = buildPreviewHtml();
-    expect(html).toContain("path ");
-    expect(html).toContain("[");
-    expect(html).toContain("lineCap");
-    expect(html).toContain("globalAlpha");
+    expect(html).toContain('data-testid="shape-list"');
   });
 });

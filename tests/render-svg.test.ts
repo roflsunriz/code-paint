@@ -5,7 +5,7 @@ import { renderDocumentToSvg } from "../src/render-svg.ts";
 import { parsePaintDocument } from "../src/validate-document.ts";
 
 const SAMPLE: PaintDocument = {
-  version: 2,
+  version: 3,
   canvas: { width: 320, height: 200, background: "#ffffff" },
   phase: "base",
   shapes: [
@@ -43,7 +43,7 @@ describe("renderDocumentToSvg", () => {
 
   test("pathとopacityを写像する", () => {
     const document: PaintDocument = {
-      version: 2,
+      version: 3,
       canvas: { width: 100, height: 100, background: "#ffffff" },
       phase: "lineart",
       shapes: [
@@ -64,13 +64,13 @@ describe("renderDocumentToSvg", () => {
     };
     const svg = renderDocumentToSvg(document);
     expect(svg).toContain(
-      '<path d="M0 0 L10 10 L20 0" fill="#ff0000" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>',
+      '<path d="M0 0 L10 10 L20 0" fill="#ff0000" fill-opacity="0.5" stroke="#000000" stroke-opacity="0.5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     );
   });
 
   test("背景フェーズはSVGでも最背面に出力される", () => {
     const document: PaintDocument = {
-      version: 2,
+      version: 3,
       canvas: { width: 32, height: 32, background: "#ffffff" },
       phase: "background",
       shapes: [

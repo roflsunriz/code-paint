@@ -4,7 +4,7 @@ import type { PaintDocument } from "../src/paint-document.ts";
 
 function emptyBaseDocument(width = 16, height = 16): PaintDocument {
   return {
-    version: 2,
+    version: 3,
     canvas: { width, height, background: "#ffffff" },
     phase: "base",
     shapes: [],
@@ -48,11 +48,9 @@ describe("bucketFillToRects", () => {
     }
   });
 
-  test("線画フェーズでは実行できない", () => {
+  test("線画フェーズでも実行できる", () => {
     const document: PaintDocument = { ...emptyBaseDocument(), phase: "lineart" };
-    expect(() => bucketFillToRects(document, { x: 1, y: 1, fill: "#ff0000" })).toThrow(
-      /バケツ塗り/,
-    );
+    expect(bucketFillToRects(document, { x: 1, y: 1, fill: "#ff0000" })).toHaveLength(16);
   });
 
   test("同色への塗りつぶしと範囲外の種点を拒否する", () => {

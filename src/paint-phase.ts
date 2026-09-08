@@ -2,9 +2,9 @@ import { PaintValidationError } from "./paint-error.ts";
 
 /**
  * 作業フェーズの定義。
- * 作業順（検証順）: lineart → base → shadow → reflection → background
+ * 推奨作業順: lineart → base → shadow → reflection → background
  * 表示順（描画順）: background → base → shadow → reflection → lineart
- * 背景は作業の最後に行うが、描画では常に最背面に合成する。
+ * layer省略時はフェーズ表示順を使う。編集の順序は制限しない。
  */
 export const PAINT_PHASES = ["lineart", "base", "shadow", "reflection", "background"] as const;
 
@@ -26,7 +26,7 @@ export const PAINT_PHASE_ORDER: Record<PaintPhase, number> = {
   background: 4,
 };
 
-/** 描画時の合成順。作業順と異なり、背景を常に最背面にする。 */
+/** layer省略時の合成順。 */
 export const PAINT_DISPLAY_ORDER: readonly PaintPhase[] = [
   "background",
   "base",
@@ -35,7 +35,7 @@ export const PAINT_DISPLAY_ORDER: readonly PaintPhase[] = [
   "lineart",
 ];
 
-const DISPLAY_RANK: Record<PaintPhase, number> = {
+export const DISPLAY_RANK: Record<PaintPhase, number> = {
   background: 0,
   base: 1,
   shadow: 2,
@@ -51,7 +51,7 @@ export function parsePaintPhase(value: unknown, path: string): PaintPhase {
   if (!isPaintPhase(value)) {
     throw new PaintValidationError(
       path,
-      "作業フェーズは lineart / base / shadow / reflection / background のいずれかで指定してください（線画→バケツ塗り→影→反射→背景の順に進めます）。",
+      "作業フェーズは lineart / base / shadow / reflection / background のいずれかで指定してください。",
     );
   }
   return value;
@@ -64,16 +64,18 @@ export function nextPaintPhase(phase: PaintPhase): PaintPhase | null {
 }
 
 /**
- * 表示順（背景を最背面）に安定ソートしたコピーを返す。
- * 同一フェーズ内では元の配列順を保つ。
+ * layerの昇順で安定ソートしたコピーを返す。省略時はフェーズ表示順位。
+ * 同一layer内では元の配列順を保つ。
  */
-export function sortShapesByDisplayOrder<T extends { phase: PaintPhase }>(
+export function sortShapesByDisplayOrder<T extends { phase: PaintPhase; layer?: number }>(
   shapes: readonly T[],
 ): T[] {
   return shapes
     .map((shape, index) => ({ shape, index }))
     .sort((a, b) => {
-      const rank = DISPLAY_RANK[a.shape.phase] - DISPLAY_RANK[b.shape.phase];
+      const rank =
+        (a.shape.layer ?? DISPLAY_RANK[a.shape.phase]) -
+        (b.shape.layer ?? DISPLAY_RANK[b.shape.phase]);
       return rank !== 0 ? rank : a.index - b.index;
     })
     .map((entry) => entry.shape);

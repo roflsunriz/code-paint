@@ -1,47 +1,84 @@
-import type { PaintDocument, PaintShape } from "./paint-document.ts";
+import type { PaintDocument, PaintShape, PaintFill } from "./paint-document.ts";
 import { sortShapesByDisplayOrder } from "./paint-phase.ts";
 
-function opacityAttribute(opacity: number | undefined): string {
-  return opacity === undefined ? "" : ` opacity="${String(opacity)}"`;
+function escape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
-
-function shapeToSvg(shape: PaintShape): string {
+function colorAttributes(name: string, color: string, opacity = 1): string {
+  const alpha = /^#[0-9a-fA-F]{8}$/.test(color) ? Number.parseInt(color.slice(7), 16) / 255 : 1;
+  const rgb = color.startsWith("#") && color.length === 9 ? color.slice(0, 7) : color;
+  return `${name}="${rgb}"${alpha * opacity === 1 ? "" : ` ${name === "stop-color" ? "stop" : name}-opacity="${String(alpha * opacity)}"`}`;
+}
+function fillToSvg(fill: PaintFill | undefined, index: number, definitions: string[]): string {
+  if (fill === undefined) return "none";
+  if (typeof fill === "string") return fill;
+  const id = `paint-gradient-${String(index)}`;
+  const stops = fill.stops
+    .map(
+      (stop) =>
+        `<stop offset="${String(stop.offset)}" ${colorAttributes("stop-color", stop.color)}/>`,
+    )
+    .join("");
+  if (fill.kind === "linear")
+    definitions.push(
+      `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${String(fill.x1)}" y1="${String(fill.y1)}" x2="${String(fill.x2)}" y2="${String(fill.y2)}">${stops}</linearGradient>`,
+    );
+  else
+    definitions.push(
+      `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${String(fill.cx)}" cy="${String(fill.cy)}" r="${String(fill.r)}">${stops}</radialGradient>`,
+    );
+  return `url(#${id})`;
+}
+function shapeToSvg(shape: PaintShape, index: number, definitions: string[]): string {
+  const fill = fillToSvg("fill" in shape ? shape.fill : undefined, index, definitions);
+  const opacity = shape.opacity === undefined ? "" : ` opacity="${String(shape.opacity)}"`;
+  let element: string;
   switch (shape.kind) {
-    case "rect": {
-      return `<rect x="${String(shape.x)}" y="${String(shape.y)}" width="${String(shape.width)}" height="${String(shape.height)}" fill="${shape.fill}"${opacityAttribute(shape.opacity)}/>`;
-    }
-    case "circle": {
-      return `<circle cx="${String(shape.cx)}" cy="${String(shape.cy)}" r="${String(shape.r)}" fill="${shape.fill}"${opacityAttribute(shape.opacity)}/>`;
-    }
-    case "line": {
-      return `<line x1="${String(shape.x1)}" y1="${String(shape.y1)}" x2="${String(shape.x2)}" y2="${String(shape.y2)}" stroke="${shape.stroke}" stroke-width="${String(shape.strokeWidth)}"${opacityAttribute(shape.opacity)}/>`;
-    }
-    case "path": {
-      const first = shape.points[0];
-      const rest = shape.points
-        .slice(1)
-        .map((point) => `L${String(point.x)} ${String(point.y)}`)
-        .join(" ");
-      const start = first === undefined ? "" : `M${String(first.x)} ${String(first.y)}`;
-      const segments = rest === "" ? start : `${start} ${rest}`;
-      const fill = shape.fill ?? "none";
-      return `<path d="${segments}" fill="${fill}" stroke="${shape.stroke}" stroke-width="${String(shape.strokeWidth)}" stroke-linecap="round" stroke-linejoin="round"${opacityAttribute(shape.opacity)}/>`;
+    case "rect":
+      element = `<rect x="${String(shape.x)}" y="${String(shape.y)}" width="${String(shape.width)}" height="${String(shape.height)}" ${colorAttributes("fill", fill)}${opacity}/>`;
+      break;
+    case "circle":
+      element = `<circle cx="${String(shape.cx)}" cy="${String(shape.cy)}" r="${String(shape.r)}" ${colorAttributes("fill", fill)}${opacity}/>`;
+      break;
+    case "line":
+      element = `<line x1="${String(shape.x1)}" y1="${String(shape.y1)}" x2="${String(shape.x2)}" y2="${String(shape.y2)}" ${colorAttributes("stroke", shape.stroke)} stroke-width="${String(shape.strokeWidth)}"${opacity}/>`;
+      break;
+    case "path":
+    case "curve": {
+      const d =
+        shape.kind === "curve"
+          ? shape.d
+          : shape.points
+              .map((point, i) => `${i === 0 ? "M" : "L"}${String(point.x)} ${String(point.y)}`)
+              .join(" ");
+      element = `<path d="${escape(d)}" ${colorAttributes("fill", fill, shape.opacity)} ${colorAttributes("stroke", shape.strokeWidth === 0 ? "none" : shape.stroke, shape.opacity)} stroke-width="${String(shape.strokeWidth)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      break;
     }
   }
+  if (shape.clip !== undefined) {
+    const id = `paint-clip-${String(index)}`;
+    definitions.push(
+      `<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><path d="${escape(shape.clip)}"/></clipPath>`,
+    );
+    element = `<g clip-path="url(#${id})">${element}</g>`;
+  }
+  if (shape.transform !== undefined)
+    element = `<g transform="matrix(${shape.transform.map(String).join(" ")})">${element}</g>`;
+  return element;
 }
-
-/**
- * 描画ドキュメントをSVGテキストへ変換する純粋関数。
- * PNG描画（render-document.ts）と同一の座標・色セマンティクスを持つ。
- * 出力は決定的で、同一入力からは常に同一文字列を返すため、
- * 画像を見られないエージェントでも厳密な文字列比較・diffで検証できる。
- * なお値は検証済み（数値・16進色）のみが入るため、追加のエスケープは不要。
- * 作業フェーズは線画→バケツ塗り→影→反射→背景の順に検証されるが、
- * 描画では背景層を常に最背面に合成する（PNGと同一順）。
- */
+/** 同一座標系・安定したlayer順でPNGと対応する決定的SVGを返す。 */
 export function renderDocumentToSvg(document: PaintDocument): string {
   const width = String(document.canvas.width);
   const height = String(document.canvas.height);
-  const shapes = sortShapesByDisplayOrder(document.shapes).map(shapeToSvg).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="0" y="0" width="${width}" height="${height}" fill="${document.canvas.background}"/>${shapes}</svg>`;
+  const definitions: string[] = [];
+  const shapes = sortShapesByDisplayOrder(document.shapes)
+    .filter((shape) => shape.hidden !== true)
+    .map((shape, index) => shapeToSvg(shape, index, definitions))
+    .join("");
+  const defs = definitions.length === 0 ? "" : `<defs>${definitions.join("")}</defs>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${defs}<rect x="0" y="0" width="${width}" height="${height}" ${colorAttributes("fill", document.canvas.background)}/>${shapes}</svg>`;
 }

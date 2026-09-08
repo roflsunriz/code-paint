@@ -8,7 +8,7 @@
     "paint": "bun run src/cli.ts",
     "preview": "bun run src/preview.ts",
     "migrate": "bun run src/migrate.ts",
-    "lint": "eslint src tests --max-warnings=0",
+    "lint": "eslint src tests examples --max-warnings=0",
     "format": "prettier --check src tests examples package.json tsconfig.json",
     "format:write": "prettier --write src tests examples package.json tsconfig.json",
     "type-check": "tsc --noEmit",

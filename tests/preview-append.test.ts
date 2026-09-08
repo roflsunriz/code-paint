@@ -12,7 +12,7 @@ const inputPath = join(workdir, "doc.json");
 const referencePath = join(workdir, "ref.png");
 
 const baseDocument = {
-  version: 2,
+  version: 3,
   canvas: { width: 64, height: 48, background: "#ffffff" },
   phase: "lineart",
   shapes: [{ kind: "rect", phase: "lineart", x: 1, y: 2, width: 10, height: 20, fill: "#ff0000" }],
@@ -75,7 +75,7 @@ describe("preview append api", () => {
     expect(result.total).toBe(2);
   });
 
-  test("現在のフェーズと違う図形の追記は400で拒否する", async () => {
+  test("現在と異なるフェーズの図形も追記して自由に加筆できる", async () => {
     await setupInput();
     server = startPreviewServer({ inputPath, port: 0 });
     const response = await fetch(`http://127.0.0.1:${String(server.port)}/shapes`, {
@@ -85,13 +85,13 @@ describe("preview append api", () => {
         shape: { kind: "rect", phase: "base", x: 0, y: 0, width: 4, height: 4, fill: "#ff0000" },
       }),
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
     const result = (await response.json()) as { ok: boolean; error: string };
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/作業フェーズ/);
+    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({ ok: true, added: 1, total: 2 });
     const raw = await readFile(inputPath, "utf-8");
     const parsed = JSON.parse(raw) as { shapes: unknown[] };
-    expect(parsed.shapes).toHaveLength(1);
+    expect(parsed.shapes).toHaveLength(2);
   });
 
   test("不正な図形の追記は400で拒否し既存の入力を壊さない", async () => {
@@ -127,7 +127,7 @@ describe("preview append api", () => {
     expect(parsed.phase).toBe("lineart");
   });
 
-  test("POST /phase で一段ずつ進められ飛ばしは拒否される", async () => {
+  test("POST /phase で自由に作業工程を切り替えられる", async () => {
     await setupInput();
     server = startPreviewServer({ inputPath, port: 0 });
     const okResponse = await fetch(`http://127.0.0.1:${String(server.port)}/phase`, {
@@ -141,15 +141,15 @@ describe("preview append api", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ phase: "reflection" }),
     });
-    expect(skipResponse.status).toBe(400);
+    expect(skipResponse.status).toBe(200);
     const skipResult = (await skipResponse.json()) as { ok: boolean; error: string };
-    expect(skipResult.ok).toBe(false);
-    expect(skipResult.error).toMatch(/一段ずつ/);
+    expect(skipResult.ok).toBe(true);
+    expect(skipResult).toMatchObject({ phase: "reflection", total: 1 });
   });
 
   test("POST /bucket はbase相でのみ塗りつぶしrectを展開する", async () => {
     await setupInput({
-      version: 2,
+      version: 3,
       canvas: { width: 16, height: 16, background: "#ffffff" },
       phase: "base",
       shapes: [],

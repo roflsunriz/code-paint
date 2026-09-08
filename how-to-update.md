@@ -1,70 +1,53 @@
-# 更新手順
+# 更新・復旧手順
 
-## 前提
+## 前提と更新
 
-- Bun 1.x
-- 初回のみ `bun install`
-
-## 更新コマンド
+Bun 1.xを使います。依存関係の正本は `package.json` と `bun.lock` です。
 
 ```powershell
 bun install
-bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
-```
-
-SVGテキストも必要な場合:
-
-```powershell
-bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
-```
-
-プレビューを使う場合:
-
-```powershell
-bun run src/preview.ts -- --input examples/hello.json --port 8901
-```
-
-リファレンス画像を付ける場合:
-
-```powershell
-bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference reference/miku.png
-```
-
-起動後に `http://localhost:8901/` を開く。終了は Ctrl+C。
-
-逐次追記する場合（入力JSONに保存され画面へ自動反映される）:
-
-```powershell
-Invoke-RestMethod -Method POST http://localhost:8901/shapes -ContentType "application/json" -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
-Invoke-RestMethod -Method POST http://localhost:8901/phase -ContentType "application/json" -Body '{"phase": "shadow"}'
-Invoke-RestMethod -Method POST http://localhost:8901/bucket -ContentType "application/json" -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
-Invoke-RestMethod -Method DELETE http://localhost:8901/shapes
-```
-
-作業順は線画→バケツ塗り→影→反射→背景で、追記は現在のフェーズのみ、進行は一段ずつ。消去するとフェーズは線画に戻る。
-
-旧形式（version 1）の入力を移行する場合:
-
-```powershell
-bun run src/migrate.ts -- --input <旧JSON> --output <新JSON>
-```
-
-## 検証方法
-
-```powershell
 bun run lint
 bun run format
 bun run type-check
 bun run build
 bun run test
+bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
 ```
 
-`out/hello.png` がPNGシグネチャ（`137,80,78,71,13,10,26,10`）で始まることを確認する。
-詳細は `verification.md` を参照。
+## 旧JSONをv3へ移行する
 
-## 復旧方針
+v1/v2は直接読み込まず、出力先を分けて明示的に移行します。
 
-- 描画CLIは入力JSONを読み取り、指定PNG/SVGへ出力する。プレビューの追記・塗り・消去・フェーズ進行は入力JSONを更新するため、必要なら作業前にコピーを保存する。
-- 出力を誤って上書きした場合は、入力JSONから再生成する。
-- 依存関係の更新で描画が変わった場合は、`bun.lock` を戻し `bun install` し直す。
-- プレビューのポートが使用中の場合は `--port` を変える（例: `--port 8902`）。サーバは `127.0.0.1` のみで待ち受ける。
+```powershell
+bun run src/migrate.ts -- --input old-v2.json --output new-v3.json
+bun run src/cli.ts -- --input new-v3.json --output out/migrated.png
+```
+
+v2の表示順は `layer` に固定して保持します。旧形式で無視されていた項目を新しい機能として勝手に有効化しません。v1の図形は線画ガイドとして取り込み、元の配列順を保持します。移行後は必要な部品へ `group` を設定すると一括編集できます。元のJSONは復旧用に保管してください。
+
+## プレビュー
+
+```powershell
+bun run src/preview.ts -- --input new-v3.json --port 8901 --reference reference/miku.png
+```
+
+参照画像のパスは手元の画像に置き換えます。参照なしの場合は `--reference` を省略。[プレビュー](http://localhost:8901/)を開きます。ポートが使用中なら `--port 8902` などへ変更してください。終了は Ctrl+C。
+
+編集APIとUIの部分修正は入力JSONを更新します。工程は任意に戻せます。操作の詳細とAPI一覧は [README.md](README.md) を参照してください。
+
+## 復旧
+
+- 描画CLIは入力JSONを変更せず、指定した出力を上書きします。PNG/SVGを失った場合はJSONから再生成できます。
+- プレビューのUndo/Redoは起動中の履歴です。外部からJSONを保存した場合と再起動時にリセットされるため、大きな変更の前には入力JSONのコピーを保存してください。
+- JSONが壊れている場合は画面に検証エラーが出ます。原文または保存済みコピーを修正すると自動で再表示されます。壊れた入力を空の作品で自動上書きしません。
+- API編集中に外部保存が検出されると409になります。最新の入力を読み直してから変更を再適用してください。
+- 表示設定だけを戻す場合は「表示をリセット」を使います。作品のデータには影響しません。
+- 依存更新により描画が変わった場合は、以前の `package.json` と `bun.lock` をそろえて復元し、`bun install` と検証を再実行してください。
+
+## 局所PNG
+
+```powershell
+bun run src/cli.ts -- --input new-v3.json --output out/detail.png --crop 20,30,100,100 --scale 3
+```
+
+切り抜きはキャンバス内、出力は各辺4096px以下にしてください。元の曲線から拡大描画します。`--svg` は局所指定にかかわらず全体を保存します。

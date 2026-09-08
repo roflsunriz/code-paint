@@ -1,139 +1,163 @@
 # code-paint
 
-コードのみでイラストを描くためのCLI。JSON DSLを入力し、ヘッドレスでPNGを出力する。
-コーディングエージェントがCLI経由で描画し、出力PNGをフィードバックに次の描画へ進むループを想定する。
+コードで描き、プレビューで比較し、部品ごとに直すための描画CLIです。JSONの図形からPNGとSVGを生成します。ベジェ曲線、グラデーション、クリッピング、レイヤー、グループ編集に対応しています。
 
-## 使い方
+## はじめる
 
-前提: Bun 1.x（`bun --version` で確認）。
+前提は Bun 1.x です。
 
 ```powershell
 bun install
-bun run src/cli.ts -- --input examples/hello.json --output out/hello.png
+bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
+bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference reference/miku.png
 ```
 
-画像を見られないエージェント向けに、同一内容のSVGテキストも出力できる。
+最後のコマンドの参照画像は手元の画像パスに置き換えてください。参照なしでも起動できます。[プレビュー](http://localhost:8901/)で入力ファイルの保存やAPIによる編集を約500ms間隔で反映します。終了は Ctrl+C。
+
+## リファレンスに近づける
+
+1. 参照のX・Y・幅・高さを元画像のピクセル座標で指定し、描きたい顔や部品を切り抜く。
+2. 「並べて比較」「半透明で重ねる」「差分」を切り替え、輪郭や位置のずれを見る。
+3. 図形のIDまたはグループで検索し、座標・色・曲線・変形を修正する。
+4. 局所PNGを拡大して書き出し、細部を確認する。
+
+参照は縦横比を保って作品の枠に収めます。「枠に合わせる」で全体を表示し、手動の拡大率は25〜400%。拡大時は枠内をスクロールできます。表示方法・拡大率・参照の切り抜きはブラウザに保存します。参照画像は比較用で、作品のPNG/SVGには入りません。
+
+作業フェーズ（線画・塗り・影・反射・背景）はガイドです。いつでも戻る・飛ばすことができ、どのフェーズの図形も修正・追加できます。表示順はレイヤーで決めます。
+
+### 精密描画サンプル
 
 ```powershell
-bun run src/cli.ts -- --input examples/hello.json --output out/hello.png --svg out/hello.svg
+bun run examples/miku-study.ts
+Copy-Item out/miku-study/document.json out/miku-study/live.json
+bun run src/preview.ts -- --input out/miku-study/live.json --port 8901 --reference <参照画像のパス>
 ```
 
-入力JSON（v2、作業フェーズ付き）:
+生成した `out/miku-study/document.json` をプレビューの入力に指定して完成画を見ることもできます。ライブ描画では、空のv3 JSONを入力としてサーバーを起動した後に次を実行します。指定サーバーの絵全体がサンプルへ置き換わるため、別の作品は先に保存してください。
+
+```powershell
+bun run examples/miku-study.ts --live http://localhost:8901
+```
+
+サンプルは `examples/miku-study.ts` の曲線と色から描きます。参照画像の埋め込み・画素のコピーは使いません。元画像は同梱していません。
+
+## JSON DSL v3
 
 ```json
 {
-  "version": 2,
-  "canvas": { "width": 320, "height": 200, "background": "#ffffff" },
+  "version": 3,
+  "canvas": { "width": 500, "height": 400, "background": "#ffffff" },
   "phase": "base",
   "shapes": [
-    { "kind": "line", "phase": "lineart", "x1": 20, "y1": 170, "x2": 300, "y2": 170, "stroke": "#000000", "strokeWidth": 4 },
-    { "kind": "rect", "phase": "base", "x": 20, "y": 30, "width": 120, "height": 80, "fill": "#ff0000" },
-    { "kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff" }
+    {
+      "id": "hair",
+      "group": "head",
+      "layer": 10,
+      "kind": "curve",
+      "phase": "base",
+      "d": "M 100 300 C 70 60 430 60 400 300 Q 250 240 100 300 Z",
+      "fill": {
+        "kind": "linear", "x1": 100, "y1": 100, "x2": 400, "y2": 300,
+        "stops": [{ "offset": 0, "color": "#9edbd7" }, { "offset": 1, "color": "#3a8d9b" }]
+      },
+      "stroke": "#2c6571",
+      "strokeWidth": 2
+    }
   ]
 }
 ```
 
-- `version` は現在 `2`。`version: 1` の旧データは `bun run src/migrate.ts -- --input <旧JSON> --output <新JSON>` で移行する（旧図形は線画として取り込み、現在フェーズは線画からやり直し）。
-- 色は `#RGB` / `#RRGGBB` / `#RRGGBBAA` 形式。
-- 対応図形: `rect` / `circle` / `line` / `path`（自由線・ブラシ相当。`points` は2〜10000点、`fill` 指定で閉形塗りつぶし）。
-- 全図形に任意の `opacity`（0〜1、省略時1）を指定できる。
-- rectの幅・高さは0以上。負の値はPNGとSVGで描画が一致しないため受け付けない。
-- 見送り中のツール選定: テキスト（フォント依存で出力が非決定的になる）、楕円・レイヤー群（現状の円・透明度・フェーズ層で足りる間は追加しない）。効率性と検証性を優先した判断であり、実利用で不足が確認されれば再選定する。
-- エラー時は原因と次の行動が分かる日本語メッセージを出す（例: 色形式、必須引数の不足）。
-- 描画結果はPNG（画像）とSVG（コード）の両方で受け取れる。SVGは決定的なテキストのため、画像を見られないエージェントでも厳密な文字列比較・diffで検証できる。
+### 図形と色
 
-## 作業フェーズ（線画→バケツ塗り→影→反射→背景の強制）
+| kind | 必須の形状指定 | 塗りと線 |
+| --- | --- | --- |
+| `rect` | `x`, `y`, `width`, `height` | `fill` |
+| `circle` | `cx`, `cy`, `r` | `fill` |
+| `line` | `x1`, `y1`, `x2`, `y2` | `stroke`, `strokeWidth` |
+| `path` | `points: [{x,y}, ...]` | `stroke`, `strokeWidth`, 任意の`fill` |
+| `curve` | `d` | `stroke`, `strokeWidth`, 任意の`fill` |
 
-- 各図形は `phase`（`lineart` / `base` / `shadow` / `reflection` / `background`）を持ち、ドキュメントは現在の `phase` を持つ。
-- 検証では図形配列が作業順（線画→バケツ塗り→影→反射→背景）に非減少であること、現在フェーズより先の図形を持たないことを強制する。違反は日本語エラーで拒否される。
-- 描画（PNG・SVG・プレビュー）は背景層を常に最背面に合成する（背景→塗り→影→反射→線画の順）。背景は作業の最後に行うが、表示では背面に回る。
-- バケツ塗りはラスタの flood fill を `rect` 束（高さ1・`phase: base`）へ展開して保存するため、PNG/SVG/プレビューの描画一致が保たれる。新規依存なし、同一入力は同一出力。
+`curve.d` は絶対座標の `M`（移動）、`L`（直線）、`Q`（二次ベジェ）、`C`（三次ベジェ）、`Z`（閉じる）。複数の `M` で独立した線を描けます。曲線・pathの線を消すには `strokeWidth: 0`。線幅の強弱が必要な輪郭は、閉じた曲線の塗りで表現できます。
 
-## ブラウザプレビュー
+色は `#RGB` / `#RRGGBB` / `#RRGGBBAA`。`fill` には色のほか次のグラデーションも使えます。
 
-入力JSONの保存や逐次追記でキャンバスと命令表示が自動更新されるプレビューサーバ。
+- 線形: `{kind:"linear", x1, y1, x2, y2, stops}`
+- 放射: `{kind:"radial", cx, cy, r, stops}`
+- `stops`: `[{offset:0,color:"#ffffff"},{offset:1,color:"#ffffff00"}]` のように0〜1の位置を昇順で指定。透明な色へ変化させれば、柔らかな光や赤みを重ねられます。
 
-```powershell
-bun run src/preview.ts -- --input examples/hello.json --port 8901
-```
+グラデーションの座標は図形と同じ座標系です。
 
-起動後に `http://localhost:8901/` を開くと、次の3つが同時に見られる。
+### 部品・レイヤー・マスク
 
-- キャンバス: 2D Canvasによる描画結果（寸法・背景・図形を反映）
-- 受け取った命令: 図形一覧と入力JSONの原文（検証エラー時はエラー内容も表示）
-- リファレンス: `--reference` で指定した見本画像（未指定時は案内表示）
+全図形に `phase` が必須です。以下は省略できます。
 
-入力ファイルを保存すると約500ms間隔の取得で自動更新される。不正なJSONや検証NGの入力でもサーバは落ちず、画面にエラーが表示される。サーバは `127.0.0.1` のみで待ち受け、終了は Ctrl+C。
+| 項目 | 意味 |
+| --- | --- |
+| `id` | 図形の識別子。同じドキュメント内で一意 |
+| `group` | 一括修正する部品名（例: `eye-left`） |
+| `layer` | 小さい値から大きい値へ描く。同値なら配列順 |
+| `opacity` | 0〜1の不透明度 |
+| `hidden` | `true` で書き出しを含め非表示 |
+| `clip` | `curve.d`と同じ形式のパス。塗り・線をその内側だけへ描く |
+| `transform` | `[a,b,c,d,e,f]` のアフィン変換。平行移動は `[1,0,0,1,dx,dy]` |
 
-受け取った命令欄は固定高さ（図形一覧・JSONとも高さ240px）でスクロールし、更新のたびに末尾へ自動スクロールする。図形一覧は最新200件のみ表示し、それ以前は件数表示にまとめる。
+`layer` 省略時は background=0, base=1, shadow=2, reflection=3, lineart=4。明示レイヤーもこの数値と一緒に並びます。`clip` は図形のローカル座標で指定し、グラデーション・線と一緒に `transform` が適用されます。`group` は図形の集合で、独立した合成レイヤーではありません。グループのopacityは各図形に適用され、transformは各図形の既存行列を置き換えます。
 
-### 逐次追記（細かく積み重ねる描画）
+上限: キャンバス・PNG出力は各辺4096px、図形10000件、pathの点／curveの命令10000個。座標・線幅・変形係数などの数値の絶対値は100万以下です。不正な入力は保存前に拒否します。
 
-コーディングエージェントは全文JSONを毎回送らず、1件ずつ追記して積み重ねられる。
+## 編集API
 
-```powershell
-# 1件追記（現在のフェーズの図形のみ受け付ける）
-Invoke-RestMethod -Method POST http://localhost:8901/shapes `
-  -ContentType "application/json" `
-  -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
-
-# 複数件追記
-Invoke-RestMethod -Method POST http://localhost:8901/shapes `
-  -ContentType "application/json" `
-  -Body '{"shapes": [{...}, {...}]}'
-
-# フェーズ進行（一段ずつ、飛ばし・戻り不可）
-Invoke-RestMethod -Method POST http://localhost:8901/phase `
-  -ContentType "application/json" `
-  -Body '{"phase": "shadow"}'
-
-# バケツ塗り（base相のみ。flood fillをrect束へ展開して追記）
-Invoke-RestMethod -Method POST http://localhost:8901/bucket `
-  -ContentType "application/json" `
-  -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
-
-# 全消去（キャンバス設定は保持、フェーズは線画に戻る）
-Invoke-RestMethod -Method DELETE http://localhost:8901/shapes
-```
-
-追記は入力JSONファイルに保存されるため、プレビュー表示と `/document`・`/svg`・CLI出力がそのまま連動する。不正な図形・別フェーズの図形・飛ばしの進行・base相以外のバケツ塗りは400番台のJSONエラーで拒否され、既存の入力は変更されない。
-
-### リファレンス画像の受け渡し
+PowerShellから使う例です。ID・グループ名をURLに含めるときはURLエンコードしてください。
 
 ```powershell
-bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference reference/miku.png
+# 図形を追加（phaseは現在の作業ガイドと異なってもよい）
+Invoke-RestMethod -Method POST http://localhost:8901/shapes -ContentType 'application/json' -Body '{"shape":{"id":"eye","group":"face","kind":"circle","phase":"base","cx":200,"cy":150,"r":30,"fill":"#45aab5"}}'
+# 座標だけを修正
+Invoke-RestMethod -Method PATCH http://localhost:8901/shapes/eye -ContentType 'application/json' -Body '{"cx":205}'
+# グループ全体を平行移動
+Invoke-RestMethod -Method PATCH http://localhost:8901/groups/face -ContentType 'application/json' -Body '{"transform":[1,0,0,1,5,0]}'
+# 工程を戻す
+Invoke-RestMethod -Method POST http://localhost:8901/phase -ContentType 'application/json' -Body '{"phase":"lineart"}'
+Invoke-RestMethod -Method POST http://localhost:8901/undo
+Invoke-RestMethod -Method POST http://localhost:8901/redo
 ```
 
-- 画面の「リファレンス」に見本が表示される。
-- エージェントは `http://localhost:8901/reference` から画像バイトを取得できる。
+| メソッド・経路 | 操作 |
+| --- | --- |
+| `GET /document` | 検証結果・図形・入力原文・ハッシュ |
+| `PUT /document` | v3ドキュメント全体の置換 |
+| `POST /shapes` | `{"shape":{...}}` または `{"shapes":[...]}` の追記 |
+| `PATCH /shapes/:id` | 指定図形の部分更新 |
+| `DELETE /shapes/:id` | 指定図形の削除 |
+| `PATCH /groups/:group` | 同じグループの図形を一括更新 |
+| `DELETE /groups/:group` | グループの削除 |
+| `DELETE /shapes` | 全消去。キャンバスを保持し作業ガイドを線画へ戻す |
+| `POST /phase` | `{"phase":"shadow"}` など任意工程へ変更 |
+| `POST /bucket` | `{"x":100,"y":100,"fill":"#aabbcc"}` で連続領域を塗る |
+| `GET /history` | `canUndo`, `canRedo` を取得 |
+| `POST /undo`, `POST /redo` | 操作を戻す・やり直す |
+| `GET /svg` | 作品全体のSVG |
+| `GET /render.png` | 作品のPNG。`?x=100&y=100&width=200&height=200&scale=3` で局所拡大 |
+| `GET /reference` | 指定した参照画像（未設定・紛失時は404） |
+
+PATCHは変更する項目だけを送ります。`id` と `kind` は変更できません。任意項目は `null` で除去できます。APIが追加図形のID省略を補うので、以後は `/document` で得たIDを使います。
+
+バケツ塗りは描画結果の連続領域を走査し、高さ1のrect束にして保存します。工程を問わず使用でき、`layer`を指定できます。許容差は既定16、0〜255。PNGとSVGで同じ領域を再現できます。
+
+編集は入力JSONへ保存されます。Undo/Redoはサーバー起動中の最大100件・合計32MiBで、外部から入力ファイルを保存した場合とサーバー再起動時にリセットされます。長期保存には入力JSONのコピーを使ってください。API同士の編集は直列化し、保存は一時ファイルから置き換えます。外部保存との競合を検出すると409で再確認を求めます。
+
+サーバーは127.0.0.1で待ち受けます。別OriginのWebページからの書き込みを拒否し、外部画像やスクリプトをDSLへ埋め込む機能はありません。
+
+## 局所拡大と旧データの移行
 
 ```powershell
-Invoke-WebRequest http://localhost:8901/reference -OutFile out/reference.png
+bun run src/cli.ts -- --input out/miku-study/document.json --output out/miku-study/eyes.png --crop 230,360,400,400 --scale 3
+bun run src/migrate.ts -- --input old-v2.json --output new-v3.json
 ```
 
-画像を見られないエージェントは `http://localhost:8901/svg` から同一内容のSVGテキストを取得できる（異常入力時は400番台のJSONエラー）。
+局所PNGは曲線から再描画します。CLIの `--svg` はcrop指定にかかわらず全体のSVGを保存します。旧v1/v2は直接描画せず、移行コマンドでv3へ変換します。v2は元のフェーズによる表示順をレイヤーへ保存し、見た目を保持します。
 
 ## 開発者向け
-
-構成:
-
-- `src/paint-document.ts` - DSLの型定義（v2・作業フェーズ付き）
-- `src/paint-phase.ts` - 作業フェーズの定義・検証・表示順（背景を最背面に固定）
-- `src/paint-error.ts` - 検証エラーの型（循環参照の回避）
-- `src/validate-document.ts` - `unknown` からの厳密な検証（`any` 不使用）とv1→v2移行
-- `src/bucket-fill.ts` - バケツ塗り（flood fillをrect束へ展開、決定的出力）
-- `src/migrate.ts` - v1→v2移行CLI（`--input` / `--output`）
-- `src/render-document.ts` - `@napi-rs/canvas` によるPNG描画（フェーズ層順）
-- `src/render-svg.ts` - SVGテキスト描画（PNGと同一セマンティクス、決定的出力、新規依存なし）
-- `src/cli.ts` - CLI（`--input` / `--output` / `--svg` / `--help`）
-- `src/preview.ts` - プレビューサーバのCLI（`--input` / `--port` / `--reference` / `--help`）
-- `src/preview-server.ts` - `/` と `/document` と `/svg` と `/reference` と `/shapes`（POST追記・DELETE消去）と `/phase`（一段進行）と `/bucket`（塗り展開）を返すBunサーバ（`127.0.0.1` のみ）
-- `src/preview-payload.ts` - 配信用ペイロードの純粋関数（異常入力もエラー表示用に返す）
-- `src/preview-page.ts` - プレビュー画面のHTML生成（Canvas描画・命令表示・約500ms取得・フェーズ表示）
-- `tests/` - `bun test` による検証・退行テスト
-- `examples/hello.json` - 動作確認用サンプル（v2）
-
-品質確認:
 
 ```powershell
 bun run lint
@@ -143,8 +167,10 @@ bun run build
 bun run test
 ```
 
-詳細は `verification.md`、更新手順は `how-to-update.md`、変更履歴は `CHANGELOG.md` を参照。
+- `src/paint-document.ts`, `validate-document.ts`, `curve-path.ts`: DSLと入力検証
+- `src/render-document.ts`, `render-svg.ts`: PNG/SVG描画
+- `src/preview-server.ts`, `preview-store.ts`, `preview-render.ts`: 編集・履歴・保存・局所出力
+- `src/preview-page.ts`, `preview-client.ts`, `preview-view.ts`: 比較画面
+- `examples/miku-study.ts`: 編集可能な精密描画サンプル
 
-## ライセンス
-
-MIT（`LICENSE` を参照）。
+検証は [verification.md](verification.md)、更新と復旧は [how-to-update.md](how-to-update.md)、変更履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください。ソフトウェアのライセンスはMITです。

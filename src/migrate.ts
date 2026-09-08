@@ -1,13 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { PaintValidationError, migrateV1ToV2Document } from "./validate-document.ts";
+import { PaintValidationError, migrateToCurrentDocument } from "./validate-document.ts";
 
 function printUsage(): void {
-  console.log(`使い方: bun run src/migrate.ts -- --input <旧JSON(v1)> --output <新JSON(v2)>
+  console.log(`使い方: bun run src/migrate.ts -- --input <旧JSON(v1/v2)> --output <新JSON(v3)>
 
-version 1 の旧ドキュメントを version 2（作業フェーズ付き）へ移行します。
-旧図形はすべて線画（lineart）として取り込み、現在フェーズも線画からやり直します。
-例: bun run src/migrate.ts -- --input examples/hello-v1.json --output out/hello-v2.json`);
+version 1 / 2 の旧ドキュメントを version 3 へ移行します。
+旧図形の見た目を保つレイヤーと編集用IDを追加します。
+例: bun run src/migrate.ts -- --input examples/hello-v1.json --output out/hello-v3.json`);
 }
 
 function parseArgs(args: readonly string[]): { input: string; output: string } | null {
@@ -78,7 +78,7 @@ export async function run(argv: readonly string[]): Promise<void> {
   }
   let document;
   try {
-    document = migrateV1ToV2Document(parsed);
+    document = migrateToCurrentDocument(parsed);
   } catch (error) {
     console.error(`移行に失敗しました: ${toErrorMessage(error)}`);
     process.exitCode = 1;
@@ -95,12 +95,10 @@ export async function run(argv: readonly string[]): Promise<void> {
     return;
   }
   console.log(
-    `移行しました: ${options.output} （図形${String(document.shapes.length)}件を線画として取り込み、現在フェーズはlineartです）`,
+    `移行しました: ${options.output} （図形${String(document.shapes.length)}件を取り込みました）`,
   );
 }
 
-const invokedDirectly =
-  typeof process.argv[1] === "string" && process.argv[1].endsWith("migrate.ts");
-if (invokedDirectly) {
+if (import.meta.main) {
   await run(process.argv.slice(2));
 }

@@ -1,529 +1,122 @@
-export const PREVIEW_POLL_MS = 500;
+import { initializePreview } from "./preview-client.ts";
+import { previewStyles } from "./preview-style.ts";
+import {
+  detailRenderUrl,
+  fitReferenceCrop,
+  normalizePreviewSettings,
+  previewCanvasLayout,
+  validateReferenceCrop,
+} from "./preview-view.ts";
 
+export const PREVIEW_POLL_MS = 500;
 export const PREVIEW_MAX_LIST_ITEMS = 200;
 
+function icon(
+  name:
+    | "mark"
+    | "undo"
+    | "redo"
+    | "image"
+    | "layers"
+    | "export"
+    | "fit"
+    | "reset"
+    | "sliders"
+    | "code"
+    | "info",
+): string {
+  const paths = {
+    mark: '<path d="m8 5-5 7 5 7M16 5l5 7-5 7M14 4l-4 16"/>',
+    undo: '<path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" transform="translate(0 -2)"/>',
+    redo: '<path d="m15 5 5 5-5 5M20 10H10a6 6 0 0 0 0 12" transform="translate(0 -2)"/>',
+    image:
+      '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/>',
+    layers: '<path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5"/>',
+    export: '<path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/>',
+    fit: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><rect x="7" y="7" width="10" height="10" rx="1"/>',
+    reset: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
+    sliders:
+      '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
+    code: '<path d="m8 5-6 7 6 7m8-14 6 7-6 7M14 3l-4 18"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v1"/>',
+  };
+  return (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    paths[name] +
+    "</svg>"
+  );
+}
+
 export function buildPreviewHtml(): string {
-  return `<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>code-paint プレビュー</title>
-<style>
-  :root {
-    color-scheme: light;
-    --bg: #edf0f5;
-    --card: #ffffff;
-    --line: #dfe4ec;
-    --ink: #1f2733;
-    --muted: #5f6b7d;
-    --accent: #2563eb;
-    --accent-soft: #e3edff;
-    --ok: #177245;
-    --ok-bg: #e5f5ec;
-    --ng: #8a1f1f;
-    --ng-bg: #fdecea;
-    --code-bg: #141a24;
-    --code-ink: #e8edf5;
-  }
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0;
-    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-  }
-  header.topbar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.96);
-    border-bottom: 1px solid var(--line);
-  }
-  .topbar-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 16px;
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 12px 20px;
-  }
-  .brand h1 {
-    margin: 0;
-    font-size: 17px;
-    letter-spacing: 0.02em;
-  }
-  .brand p {
-    margin: 2px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .status-pill {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 32px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-size: 12px;
-    font-weight: 600;
-    max-width: 100%;
-  }
-  main.layout {
-    display: grid;
-    grid-template-columns: minmax(0, 8fr) minmax(300px, 5fr);
-    gap: 16px;
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 16px 20px 28px;
-    align-items: start;
-  }
-  section.card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 14px;
-    box-shadow: 0 1px 6px rgba(31, 39, 51, 0.07);
-    min-width: 0;
-  }
-  section.card h2 {
-    margin: 0;
-    font-size: 15px;
-  }
-  section.card h3 {
-    margin: 14px 0 6px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  .card-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .count-badge {
-    font-size: 12px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .canvas-frame {
-    margin-top: 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background-color: #f7f9fc;
-    background-image:
-      linear-gradient(45deg, #e8edf4 25%, transparent 25%, transparent 75%, #e8edf4 75%),
-      linear-gradient(45deg, #e8edf4 25%, transparent 25%, transparent 75%, #e8edf4 75%);
-    background-size: 20px 20px;
-    background-position: 0 0, 10px 10px;
-    padding: 12px;
-    overflow: auto;
-    max-height: min(72vh, 760px);
-  }
-  canvas[data-testid="paint-canvas"] {
-    display: block;
-    width: min(100%, 960px);
-    height: auto;
-    margin: 0 auto;
-    border: 1px solid #b9c2d0;
-    border-radius: 4px;
-    background: #fff;
-    box-shadow: 0 2px 10px rgba(31, 39, 51, 0.16);
-  }
-  p[data-testid="preview-status"] {
-    margin: 10px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-    overflow-wrap: anywhere;
-  }
-  div[data-testid="preview-error"] {
-    margin-top: 8px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    background: var(--ng-bg);
-    border: 1px solid #e0a3a3;
-    color: var(--ng);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-  div[data-testid="preview-error"][hidden] {
-    display: none;
-  }
-  .ok-note {
-    margin-top: 8px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    background: var(--ok-bg);
-    border: 1px solid #9ed3b4;
-    color: var(--ok);
-    font-size: 12px;
-  }
-  .shape-scroll {
-    height: 240px;
-    overflow-y: auto;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: #fbfcfe;
-    padding: 4px 0;
-  }
-  ol[data-testid="shape-list"] {
-    margin: 0;
-    padding: 4px 8px 4px 32px;
-    font-size: 12px;
-    line-height: 1.7;
-    font-variant-numeric: tabular-nums;
-  }
-  ol[data-testid="shape-list"] li {
-    overflow-wrap: anywhere;
-    border-bottom: 1px dashed #e6ebf2;
-  }
-  ol[data-testid="shape-list"] li:last-child {
-    border-bottom: none;
-  }
-  pre[data-testid="command-json"] {
-    height: 240px;
-    overflow: auto;
-    background: var(--code-bg);
-    color: var(--code-ink);
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 11px;
-    line-height: 1.6;
-    white-space: pre;
-    margin: 0;
-  }
-  .reference-grid {
-    display: grid;
-    gap: 12px;
-  }
-  .reference-frame {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: #f7f9fc;
-    min-height: 120px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: auto;
-    max-height: 46vh;
-    padding: 8px;
-  }
-  img[data-testid="reference-image"] {
-    display: block;
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-    border: 1px solid #b9c2d0;
-    background: #fff;
-  }
-  img[data-testid="reference-image"][hidden] {
-    display: none;
-  }
-  p[data-testid="reference-status"] {
-    margin: 8px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  code.inline {
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    background: #eef2f8;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 0 5px;
-    font-size: 11px;
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--muted);
-    margin: 8px 0 0;
-    line-height: 1.8;
-  }
-  @media (max-width: 900px) {
-    main.layout {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .status-pill {
-      margin-left: 0;
-    }
-  }
-</style>
-</head>
-<body>
-<header class="topbar">
-  <div class="topbar-inner">
-    <div class="brand">
-      <h1>code-paint プレビュー</h1>
-      <p>保存・追記で約${String(PREVIEW_POLL_MS)}ms間隔に自動更新されます。作業順は線画→バケツ塗り→影→反射→背景です。</p>
-    </div>
-    <span class="status-pill" data-testid="phase-badge">フェーズ: -</span>
-    <span class="status-pill" data-testid="preview-status">読み込み中…</span>
-  </div>
+<title>code-paint Studio</title><style>${previewStyles}</style></head><body>
+<header class="app-header">
+  <div class="brand"><span class="brand-mark">${icon("mark")}</span><div><div class="brand-name"><h1>code-paint</h1><span class="edition">STUDIO</span></div><p class="brand-subtitle">CODE DRIVEN ILLUSTRATION</p></div></div>
+  <div class="header-actions"><span class="live-badge"><span class="live-dot"></span>LIVE</span><div class="history-actions"><button data-testid="undo" title="元に戻す" aria-label="元に戻す" disabled>${icon("undo")}</button><button data-testid="redo" title="やり直す" aria-label="やり直す" disabled>${icon("redo")}</button></div></div>
 </header>
-<main class="layout">
-  <div class="reference-grid">
-    <section class="card" aria-label="キャンバス">
-      <div class="card-head">
-        <h2>キャンバス</h2>
-        <span class="count-badge" data-testid="shape-count">図形 - 件</span>
+<main class="workspace">
+  <div class="workbench">
+    <div class="workbench-heading"><div><p class="eyebrow">WORKSPACE / 01</p><h2 class="workbench-title">線を重ねて、かたちに。</h2></div><span class="count" data-testid="shape-count">図形 — 件</span></div>
+    <section class="stage" aria-label="描画とリファレンスの比較">
+      <div class="stage-toolbar">
+        <label><select data-testid="compare-mode" aria-label="比較表示"><option value="side">並べて比較</option><option value="overlay">重ねて比較</option><option value="difference">差分を見る</option><option value="art">作品のみ</option></select></label>
+        <span class="toolbar-divider"></span>
+        <label>倍率<input data-testid="canvas-zoom" type="number" min="25" max="400" step="0.1" value="100" aria-label="表示倍率（入力すると手動に切り替え）" />%</label>
+        <button data-testid="view-fit" type="button" aria-pressed="true" title="枠に合わせて全体を表示">${icon("fit")}全体</button><output class="view-scale" data-testid="view-scale"></output>
+        <label class="blend-control inactive">参照<input data-testid="reference-opacity" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="重ねる参照の濃さ" disabled /></label>
+        <button class="reset-button" data-testid="view-reset" type="button" title="表示をリセット" aria-label="表示をリセット">${icon("reset")}</button>
       </div>
-      <div class="canvas-frame">
-        <canvas data-testid="paint-canvas" width="320" height="200"></canvas>
+      <div class="views" data-testid="comparison-views">
+        <figure><figcaption><span class="figure-label"><span class="figure-number">01</span>ARTWORK</span><output class="canvas-position" data-testid="canvas-position">—, —</output></figcaption><div class="viewport" data-testid="canvas-viewport"><canvas data-testid="paint-canvas" width="320" height="200"></canvas></div></figure>
+        <figure data-testid="reference-panel"><figcaption><span class="figure-label"><span class="figure-number">02</span>REFERENCE</span><span class="figure-number">SOURCE</span></figcaption><div class="viewport" data-testid="reference-viewport"><canvas data-testid="reference-canvas" width="320" height="200"></canvas></div></figure>
       </div>
-      <div class="ok-note" data-testid="preview-ok" hidden></div>
-      <div data-testid="preview-error" hidden></div>
+      <div class="stage-footer"><p data-testid="preview-status" role="status">作品を読み込み中…</p><span class="phase-badge" data-testid="phase-badge">—</span><p data-testid="preview-ok" hidden></p></div>
     </section>
-    <section class="card" aria-label="リファレンス">
-      <div class="card-head">
-        <h2>リファレンス</h2>
-      </div>
-      <div class="reference-frame">
-        <img data-testid="reference-image" src="/reference" alt="リファレンス画像" hidden />
-      </div>
-      <p data-testid="reference-status">確認中…</p>
-      <p class="hint"><code class="inline">--reference &lt;画像&gt;</code> で起動するとここに表示され、エージェントは <code class="inline">/reference</code> から取得できます。</p>
-    </section>
+    <div class="error" data-testid="preview-error" role="alert" hidden></div>
+    <details class="command-details" data-testid="command-details"><summary>${icon("code")}DRAWING LOG <span class="muted">/ 受け取った命令</span></summary><pre data-testid="command-json">読み込み中…</pre><details><summary>描画APIと操作のヒント</summary><p class="hint">入力の保存・追記を自動反映します。POST /shapes で追記、POST /phase で作業フェーズ変更、POST /bucket で塗り。拡大した画像は枠内をスクロールでき、カーソル位置は作品の座標で表示されます。</p></details></details>
   </div>
-  <section class="card" aria-label="受け取った命令">
-    <div class="card-head">
-      <h2>受け取った命令</h2>
-      <span class="count-badge">最新${String(PREVIEW_MAX_LIST_ITEMS)}件のみ表示・自動スクロール</span>
+  <aside class="inspector" aria-label="作品の調整">
+    <div class="inspector-heading"><h2>INSPECTOR</h2>${icon("sliders")}</div>
+    <nav class="inspector-tabs" role="tablist" aria-label="調整パネル">
+      <button id="tab-reference" data-testid="inspector-tab-reference" role="tab" aria-controls="panel-reference" aria-selected="true" tabindex="0">${icon("image")}参照</button>
+      <button id="tab-layers" data-testid="inspector-tab-layers" role="tab" aria-controls="panel-layers" aria-selected="false" tabindex="-1">${icon("layers")}レイヤー</button>
+      <button id="tab-export" data-testid="inspector-tab-export" role="tab" aria-controls="panel-export" aria-selected="false" tabindex="-1">${icon("export")}書き出し</button>
+    </nav>
+    <p class="edit-status" data-testid="edit-status" role="status"></p><div class="error" data-testid="edit-error" role="alert" hidden></div>
+    <div id="panel-reference" class="inspector-panel" data-testid="inspector-panel-reference" role="tabpanel" aria-labelledby="tab-reference">
+      <div class="panel-intro"><h3>見たい部分に、フォーカス。</h3><p class="hint">参照の一部分を選び、作品と同じ枠で比較できます。</p></div>
+      <img data-testid="reference-image" alt="リファレンス原画像" hidden /><p class="hint" data-testid="reference-status">参照を確認中…</p>
+      <span class="section-label">REFERENCE CROP</span>
+      <form data-testid="crop-form"><div class="field-grid">
+        <label>X<input data-testid="crop-x" type="number" min="0" step="any" value="0" required /></label><label>Y<input data-testid="crop-y" type="number" min="0" step="any" value="0" required /></label>
+        <label>幅<input data-testid="crop-width" type="number" min="0.01" step="any" value="1" required /></label><label>高さ<input data-testid="crop-height" type="number" min="0.01" step="any" value="1" required /></label>
+      </div><div class="button-row"><button class="primary" data-testid="crop-apply" type="submit" disabled>範囲を適用</button><button class="quiet" data-testid="crop-reset" type="button" disabled>参照全体へ</button></div></form>
+      <p class="hint">元画像のピクセル座標で指定。縦横比は維持されます。</p>
+      <div class="mini-note">${icon("info")}<span>参照は比較表示だけに使われます。書き出した作品には含まれません。</span></div>
     </div>
-    <h3>図形一覧</h3>
-    <div class="shape-scroll" data-testid="shape-scroll">
-      <ol data-testid="shape-list"></ol>
+    <div id="panel-layers" class="inspector-panel" data-testid="inspector-panel-layers" role="tabpanel" aria-labelledby="tab-layers" hidden>
+      <div class="panel-intro"><h3>細部を、何度でも。</h3><p class="hint" data-testid="phase-progress">フェーズを自由に行き来して修正できます。</p></div>
+      <label class="full-field">作業フェーズ<select data-testid="phase-select"><option value="lineart">線画</option><option value="base">塗り</option><option value="shadow">影</option><option value="reflection">反射</option><option value="background">背景</option></select></label>
+      <span class="section-label">SHAPES &amp; GROUPS</span><label><input type="search" data-testid="shape-search" placeholder="ID・グループ・種類で検索" aria-label="図形を検索" /></label>
+      <div class="shape-scroll" data-testid="shape-scroll"><ol data-testid="shape-list"></ol></div><p class="hint">検索結果の最新${String(PREVIEW_MAX_LIST_ITEMS)}件を表示</p>
+      <details data-testid="shape-editor"><summary>選択したパーツを編集</summary><p class="hint" data-testid="selected-shape">未選択</p><details><summary>現在の図形JSON</summary><pre data-testid="selected-json">未選択</pre></details>
+        <label class="full-field">変更する項目<textarea data-testid="shape-patch" spellcheck="false">{"opacity": 1}</textarea></label>
+        <div class="button-row"><button class="primary" data-testid="shape-save" disabled>変更を適用</button><button class="quiet" data-testid="shape-delete" disabled>削除</button></div>
+        <p class="hint">例: {"transform":[1,0,0,1,5,0]} で右へ5px。任意項目の削除は null。</p>
+      </details>
+      <details data-testid="group-editor"><summary>グループをまとめて編集</summary><label class="full-field">グループ<select data-testid="group-select"><option value="">選択してください</option></select></label><label class="full-field">変更する項目<textarea data-testid="group-patch" spellcheck="false">{"hidden": false}</textarea></label><div class="button-row"><button class="primary" data-testid="group-save" disabled>変更を適用</button><button class="quiet" data-testid="group-delete" disabled>削除</button></div></details>
     </div>
-    <h3>JSON</h3>
-    <pre data-testid="command-json">(読み込み中…)</pre>
-    <p data-testid="phase-progress">作業順: 線画→バケツ塗り→影→反射→背景（現在: -）。背景は最後に作業しますが描画では最背面に合成されます。</p>
-    <p class="hint">逐次追記は <code class="inline">POST /shapes</code>（単発 <code class="inline">{"shape": {...}}</code>／複数 <code class="inline">{"shapes": [...]}</code>、現在のフェーズの図形のみ）、フェーズ進行は <code class="inline">POST /phase {"phase": "base"}</code>、バケツ塗りは <code class="inline">POST /bucket {"x": 1, "y": 1, "fill": "#ff0000"}</code>、全消去は <code class="inline">DELETE /shapes</code> を使います。</p>
-  </section>
+    <div id="panel-export" class="inspector-panel" data-testid="inspector-panel-export" role="tabpanel" aria-labelledby="tab-export" hidden>
+      <div class="panel-intro"><h3>作品を、持ち出す。</h3><p class="hint">全体の書き出しと、細部を確認する局所出力。</p></div>
+      <div class="export-grid"><a class="export-link" href="/render.png" data-testid="export-png" target="_blank" rel="noopener">${icon("export")}<span>PNG <small>IMAGE</small></span></a><a class="export-link" href="/svg" data-testid="export-svg" target="_blank" rel="noopener">${icon("code")}<span>SVG <small>VECTOR</small></span></a></div>
+      <span class="section-label">DETAIL EXPORT</span>
+      <form data-testid="detail-form"><div class="field-grid"><label>X<input data-testid="detail-x" type="number" value="0" min="0" required /></label><label>Y<input data-testid="detail-y" type="number" value="0" min="0" required /></label><label>幅<input data-testid="detail-width" type="number" value="100" min="1" required /></label><label>高さ<input data-testid="detail-height" type="number" value="100" min="1" required /></label><label>倍率<input data-testid="detail-scale" type="number" value="2" min="0.1" max="8" step="0.1" required /></label></div><div class="button-row"><button class="primary" data-testid="detail-apply">局所PNGを表示</button></div></form>
+      <a class="detail-link" data-testid="detail-link" href="/render.png" target="_blank" rel="noopener" hidden>局所PNGを開く ↗</a><img class="detail-image" data-testid="detail-image" alt="作品の局所拡大" hidden />
+    </div>
+    <div class="error" data-testid="view-error" role="alert" hidden></div>
+  </aside>
 </main>
-<script>
-  (function () {
-    var canvas = document.querySelector('[data-testid="paint-canvas"]');
-    var statusEls = document.querySelectorAll('[data-testid="preview-status"]');
-    var errorEl = document.querySelector('[data-testid="preview-error"]');
-    var okEl = document.querySelector('[data-testid="preview-ok"]');
-    var jsonEl = document.querySelector('[data-testid="command-json"]');
-    var shapeListEl = document.querySelector('[data-testid="shape-list"]');
-    var shapeScrollEl = document.querySelector('[data-testid="shape-scroll"]');
-    var countEl = document.querySelector('[data-testid="shape-count"]');
-    var phaseBadgeEl = document.querySelector('[data-testid="phase-badge"]');
-    var phaseProgressEl = document.querySelector('[data-testid="phase-progress"]');
-    var refImg = document.querySelector('[data-testid="reference-image"]');
-    var refStatus = document.querySelector('[data-testid="reference-status"]');
-    var lastHash = "";
-    var POLL_MS = ${String(PREVIEW_POLL_MS)};
-    var MAX_LIST_ITEMS = ${String(PREVIEW_MAX_LIST_ITEMS)};
-
-    function setStatus(text) {
-      for (var i = 0; i < statusEls.length; i += 1) {
-        statusEls[i].textContent = text;
-      }
-    }
-
-    function scrollToBottom(el) {
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }
-
-    function describeShape(shape, index) {
-      var opacity = shape.opacity === undefined ? "" : " opacity=" + shape.opacity;
-      var phase = shape.phase === undefined ? "phaseなし" : "[" + shape.phase + "] ";
-      if (shape.kind === "rect") {
-        return "#" + index + " " + phase + "rect x=" + shape.x + " y=" + shape.y + " " + shape.width + "x" + shape.height + " " + shape.fill + opacity;
-      }
-      if (shape.kind === "circle") {
-        return "#" + index + " " + phase + "circle cx=" + shape.cx + " cy=" + shape.cy + " r=" + shape.r + " " + shape.fill + opacity;
-      }
-      if (shape.kind === "line") {
-        return "#" + index + " " + phase + "line (" + shape.x1 + "," + shape.y1 + ")-(" + shape.x2 + "," + shape.y2 + ") " + shape.stroke + " w=" + shape.strokeWidth + opacity;
-      }
-      return "#" + index + " " + phase + "path " + shape.points.length + "点 " + shape.stroke + " w=" + shape.strokeWidth + opacity;
-    }
-
-    function displayRank(phase) {
-      if (phase === "background") return 0;
-      if (phase === "base") return 1;
-      if (phase === "shadow") return 2;
-      if (phase === "reflection") return 3;
-      return 4;
-    }
-
-    function orderedShapes(shapes) {
-      return shapes
-        .map(function (shape, index) { return { shape: shape, index: index }; })
-        .sort(function (a, b) {
-          var rank = displayRank(a.shape.phase) - displayRank(b.shape.phase);
-          return rank !== 0 ? rank : a.index - b.index;
-        })
-        .map(function (entry) { return entry.shape; });
-    }
-
-    function renderDocument(doc) {
-      canvas.width = doc.canvas.width;
-      canvas.height = doc.canvas.height;
-      var ctx = canvas.getContext("2d");
-      if (!ctx) {
-        return;
-      }
-      ctx.fillStyle = doc.canvas.background;
-      ctx.fillRect(0, 0, doc.canvas.width, doc.canvas.height);
-      var ordered = orderedShapes(doc.shapes);
-      for (var i = 0; i < ordered.length; i += 1) {
-        var shape = ordered[i];
-        ctx.save();
-        if (shape.opacity !== undefined) {
-          ctx.globalAlpha = shape.opacity;
-        }
-        if (shape.kind === "rect") {
-          ctx.fillStyle = shape.fill;
-          ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-        } else if (shape.kind === "circle") {
-          ctx.fillStyle = shape.fill;
-          ctx.beginPath();
-          ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (shape.kind === "line") {
-          ctx.strokeStyle = shape.stroke;
-          ctx.lineWidth = shape.strokeWidth;
-          ctx.beginPath();
-          ctx.moveTo(shape.x1, shape.y1);
-          ctx.lineTo(shape.x2, shape.y2);
-          ctx.stroke();
-        } else if (shape.kind === "path") {
-          ctx.strokeStyle = shape.stroke;
-          ctx.lineWidth = shape.strokeWidth;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.beginPath();
-          if (shape.points.length > 0) {
-            ctx.moveTo(shape.points[0].x, shape.points[0].y);
-            for (var j = 1; j < shape.points.length; j += 1) {
-              ctx.lineTo(shape.points[j].x, shape.points[j].y);
-            }
-          }
-          if (shape.fill !== undefined) {
-            ctx.fillStyle = shape.fill;
-            ctx.fill();
-          }
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
-    }
-
-    function updatePhase(doc) {
-      if (phaseBadgeEl) {
-        phaseBadgeEl.textContent = "フェーズ: " + doc.phase;
-      }
-      if (phaseProgressEl) {
-        phaseProgressEl.textContent =
-          "作業順: 線画→バケツ塗り→影→反射→背景（現在: " + doc.phase + "）。背景は最後に作業しますが描画では最背面に合成されます。";
-      }
-    }
-
-    function updateShapeList(doc) {
-      while (shapeListEl.firstChild) {
-        shapeListEl.removeChild(shapeListEl.firstChild);
-      }
-      var total = doc.shapes.length;
-      var start = total > MAX_LIST_ITEMS ? total - MAX_LIST_ITEMS : 0;
-      if (start > 0) {
-        var omitted = document.createElement("li");
-        omitted.textContent = "ほか " + start + " 件は省略（最新" + MAX_LIST_ITEMS + "件のみ表示）";
-        shapeListEl.appendChild(omitted);
-      }
-      for (var i = start; i < total; i += 1) {
-        var li = document.createElement("li");
-        li.textContent = describeShape(doc.shapes[i], i);
-        shapeListEl.appendChild(li);
-      }
-      if (countEl) {
-        countEl.textContent = "図形 " + total + " 件";
-      }
-      scrollToBottom(shapeScrollEl);
-    }
-
-    function checkReference() {
-      if (!refImg || !refStatus) {
-        return;
-      }
-      refImg.addEventListener("load", function () {
-        refImg.hidden = false;
-        refStatus.textContent = "リファレンス画像を表示中（/reference から取得できます）。";
-      });
-      refImg.addEventListener("error", function () {
-        refImg.hidden = true;
-        refStatus.textContent = "リファレンス未設定（--reference <画像パス> で起動）。";
-      });
-      if (refImg.complete && refImg.naturalWidth > 0) {
-        refImg.hidden = false;
-        refStatus.textContent = "リファレンス画像を表示中（/reference から取得できます）。";
-      }
-    }
-
-    function poll() {
-      fetch("/document", { cache: "no-store" })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (payload) {
-          jsonEl.textContent = payload.raw;
-          if (payload.hash === lastHash) {
-            return;
-          }
-          lastHash = payload.hash;
-          if (payload.ok) {
-            if (errorEl) {
-              errorEl.hidden = true;
-              errorEl.textContent = "";
-            }
-            if (okEl) {
-              okEl.hidden = false;
-              okEl.textContent =
-                "更新: " + new Date().toLocaleTimeString("ja-JP") +
-                " / " + payload.document.canvas.width + "x" + payload.document.canvas.height +
-                " / 図形" + payload.document.shapes.length + "件 / フェーズ " + payload.document.phase;
-            }
-            renderDocument(payload.document);
-            updatePhase(payload.document);
-            updateShapeList(payload.document);
-            scrollToBottom(jsonEl);
-            setStatus(
-              "更新: " + new Date().toLocaleTimeString("ja-JP") +
-              " / " + payload.document.canvas.width + "x" + payload.document.canvas.height +
-              " / 図形" + payload.document.shapes.length + "件 / フェーズ " + payload.document.phase + " / hash " + payload.hash
-            );
-          } else {
-            if (errorEl) {
-              errorEl.hidden = false;
-              errorEl.textContent = payload.error;
-            }
-            if (okEl) {
-              okEl.hidden = true;
-              okEl.textContent = "";
-            }
-            setStatus("エラー: 入力を修正すると自動で再表示します / hash " + payload.hash);
-          }
-        })
-        .catch(function (err) {
-          setStatus("取得に失敗しました。再試行します: " + String(err));
-        });
-    }
-
-    checkReference();
-    poll();
-    setInterval(poll, POLL_MS);
-  })();
-</script>
-</body>
-</html>`;
+<script>(${initializePreview.toString()})(${String(PREVIEW_POLL_MS)},${String(PREVIEW_MAX_LIST_ITEMS)},${normalizePreviewSettings.toString()},${validateReferenceCrop.toString()},${fitReferenceCrop.toString()},${previewCanvasLayout.toString()},${detailRenderUrl.toString()});</script>
+</body></html>`;
 }

@@ -1,7 +1,7 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { renderDocumentToCanvas } from "./render-document.ts";
 import { MAX_SHAPES, type PaintDocument, type RectShape } from "./paint-document.ts";
 import { PaintValidationError } from "./paint-error.ts";
-import { sortShapesByDisplayOrder } from "./paint-phase.ts";
+
 import { assertColor } from "./validate-document.ts";
 
 export interface BucketFillRequest {
@@ -14,7 +14,7 @@ export interface BucketFillRequest {
 const DEFAULT_TOLERANCE = 16;
 const MAX_TOLERANCE = 255;
 
-function parseHexColor(color: string): { r: number; g: number; b: number } {
+function parseHexColor(color: string): { r: number; g: number; b: number; a: number } {
   let hex = color.slice(1);
   if (hex.length === 3) {
     hex = hex
@@ -28,6 +28,7 @@ function parseHexColor(color: string): { r: number; g: number; b: number } {
     r: Math.floor(value / 65536) % 256,
     g: Math.floor(value / 256) % 256,
     b: value % 256,
+    a: hex.length === 8 ? Number.parseInt(hex.slice(6), 16) : 255,
   };
 }
 
@@ -36,60 +37,8 @@ function renderToPixels(document: PaintDocument): {
   width: number;
   height: number;
 } {
-  const canvas = createCanvas(document.canvas.width, document.canvas.height);
+  const canvas = renderDocumentToCanvas(document);
   const context = canvas.getContext("2d");
-  context.fillStyle = document.canvas.background;
-  context.fillRect(0, 0, document.canvas.width, document.canvas.height);
-  for (const shape of sortShapesByDisplayOrder(document.shapes)) {
-    context.save();
-    if (shape.opacity !== undefined) {
-      context.globalAlpha = shape.opacity;
-    }
-    switch (shape.kind) {
-      case "rect": {
-        context.fillStyle = shape.fill;
-        context.fillRect(shape.x, shape.y, shape.width, shape.height);
-        break;
-      }
-      case "circle": {
-        context.fillStyle = shape.fill;
-        context.beginPath();
-        context.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
-        context.fill();
-        break;
-      }
-      case "line": {
-        context.strokeStyle = shape.stroke;
-        context.lineWidth = shape.strokeWidth;
-        context.beginPath();
-        context.moveTo(shape.x1, shape.y1);
-        context.lineTo(shape.x2, shape.y2);
-        context.stroke();
-        break;
-      }
-      case "path": {
-        context.strokeStyle = shape.stroke;
-        context.lineWidth = shape.strokeWidth;
-        context.lineCap = "round";
-        context.lineJoin = "round";
-        context.beginPath();
-        const first = shape.points[0];
-        if (first !== undefined) {
-          context.moveTo(first.x, first.y);
-          for (const point of shape.points.slice(1)) {
-            context.lineTo(point.x, point.y);
-          }
-        }
-        if (shape.fill !== undefined) {
-          context.fillStyle = shape.fill;
-          context.fill();
-        }
-        context.stroke();
-        break;
-      }
-    }
-    context.restore();
-  }
   const image = context.getImageData(0, 0, document.canvas.width, document.canvas.height);
   return { data: image.data, width: image.width, height: image.height };
 }
@@ -103,12 +52,6 @@ function parseBucketRequest(
   fill: string;
   tolerance: number;
 } {
-  if (document.phase !== "base") {
-    throw new PaintValidationError(
-      "phase",
-      "バケツ塗りは作業フェーズがバケツ塗り（base）のときだけ実行できます。線画の後にフェーズを base へ進めてください。",
-    );
-  }
   const { x, y, fill, tolerance } = request;
   if (!Number.isInteger(x) || x < 0 || x >= document.canvas.width) {
     throw new PaintValidationError(
@@ -156,11 +99,13 @@ export function bucketFillToRects(
   const seedR = data[seedOffset] ?? 0;
   const seedG = data[seedOffset + 1] ?? 0;
   const seedB = data[seedOffset + 2] ?? 0;
+  const seedA = data[seedOffset + 3] ?? 0;
   const fillRgb = parseHexColor(seed.fill);
   if (
     Math.abs(seedR - fillRgb.r) <= seed.tolerance &&
     Math.abs(seedG - fillRgb.g) <= seed.tolerance &&
-    Math.abs(seedB - fillRgb.b) <= seed.tolerance
+    Math.abs(seedB - fillRgb.b) <= seed.tolerance &&
+    Math.abs(seedA - fillRgb.a) <= seed.tolerance
   ) {
     throw new PaintValidationError(
       "fill",
@@ -175,7 +120,8 @@ export function bucketFillToRects(
   const matches = (offset: number): boolean =>
     Math.abs((data[offset] ?? 0) - seedR) <= seed.tolerance &&
     Math.abs((data[offset + 1] ?? 0) - seedG) <= seed.tolerance &&
-    Math.abs((data[offset + 2] ?? 0) - seedB) <= seed.tolerance;
+    Math.abs((data[offset + 2] ?? 0) - seedB) <= seed.tolerance &&
+    Math.abs((data[offset + 3] ?? 0) - seedA) <= seed.tolerance;
 
   while (stack.length > 0) {
     const current = stack.pop() as number;

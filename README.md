@@ -52,6 +52,15 @@ bun run examples/butter-adventure.ts --live http://localhost:8901
 
 設定動画を使った観察と衣装・表情の修正根拠は [バターの動画分析](docs/butter-video-study.md) にタイムコード付きでまとめています。
 
+ライフセーバー衣装（セーフティーガード）の1分50秒の笑顔を起点にした別作品も再生成できます。
+
+```powershell
+bun run examples/butter-lifeguard.ts
+bun run examples/butter-lifeguard.ts --live http://localhost:8901
+```
+
+出力は `out/butter-lifeguard/`。`--live` は指定サーバーの絵を置き換えます。
+
 ## JSON DSL v3
 
 ```json

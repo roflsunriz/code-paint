@@ -393,7 +393,7 @@ oval(614, 678, 4, 3, "#80554c");
 group = "face";
 transform = rotation(-7, 620, 440);
 const face =
-  "M 418 389 C 441 331 485 310 559 305 C 644 298 735 321 772 373 C 795 408 808 504 802 553 C 797 597 771 626 730 642 C 675 663 510 667 458 638 C 421 620 401 595 400 556 C 398 505 401 440 418 389 Z";
+  "M 430 389 C 447 332 492 310 559 305 C 644 298 720 321 752 373 C 766 413 766 472 792 510 C 821 530 839 552 831 586 C 824 618 796 643 749 650 C 672 668 505 669 446 648 C 410 640 377 622 369 589 C 360 557 375 537 403 514 C 425 480 416 431 430 389 Z";
 p(face, grad(598, 342, 598, 650, ["#f6d8d0", "#fff0ea", "#fff0ea"]), ink, 5);
 oval(
   603,
@@ -414,11 +414,11 @@ p(
   0.32,
   face,
 );
-oval(450, 565, 54, 41, "#ffa5aa", "#00000000", 0, 0.9, face);
-oval(751, 558, 53, 41, "#ffa5aa", "#00000000", 0, 0.9, face);
-for (const x of [420, 439, 458])
+oval(423, 579, 73, 54, "#ffa5aa", "#00000000", 0, 0.94, face);
+oval(778, 577, 72, 54, "#ffa5aa", "#00000000", 0, 0.94, face);
+for (const x of [390, 414, 438])
   p(`M ${String(x)} 566 L ${String(x + 9)} 555`, undefined, "#ee828e", 4, 0.6, face);
-for (const x of [726, 745, 764])
+for (const x of [750, 774, 798])
   p(`M ${String(x)} 560 L ${String(x + 9)} 549`, undefined, "#ee828e", 4, 0.6, face);
 group = "eyes";
 // Lavender upper irises and pale cyan lower halves are distinctive in the references.
@@ -658,6 +658,45 @@ for (const [x, y, s, a, c] of [
   leaf(x, y, s, a, c);
 flower(188, 1208, 25);
 flower(1119, 1218, 22);
+
+// Preserve the neck attachment while correcting head-to-body and face aspect ratios.
+const headGroups = new Set(["hair-back", "face", "eyes", "smile", "hair-front", "ears", "bows"]);
+for (const shape of shapes) {
+  const name = shape.group ?? "";
+  if (name === "garden" || name === "foreground" || name === "sparkles" || name === "butterfly")
+    continue;
+  let sx = 1,
+    sy = 1,
+    cx = 610,
+    cy = 655,
+    dy = -70;
+  if (headGroups.has(name)) {
+    sx = 0.86;
+    sy = 0.7;
+  } else if (name === "dress" || name === "shorts") {
+    sx = 1.24;
+    sy = 1.12;
+  } else if (name === "arms" || name === "sling" || name === "grip") {
+    sx = 1.12;
+    sy = 1.08;
+  } else if (name === "legs-left" || name === "legs-kick" || name === "tail") dy += 25;
+  else if (name === "bag") {
+    sx = 1.12;
+    sy = 1.12;
+    cx = 735;
+    cy = 885;
+    dy += 25;
+  }
+  const [a, b, c, d, e, f] = shape.transform ?? [1, 0, 0, 1, 0, 0];
+  shape.transform = [
+    a * sx,
+    b * sy,
+    c * sx,
+    d * sy,
+    e * sx + cx * (1 - sx),
+    f * sy + cy * (1 - sy) + dy,
+  ];
+}
 
 export const butterDocument: PaintDocument = {
   version: 3,

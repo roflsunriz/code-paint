@@ -41,6 +41,15 @@ bun run examples/miku-study.ts --live http://localhost:8901
 
 サンプルは `examples/miku-study.ts` の曲線と色から描きます。参照画像の埋め込み・画素のコピーは使いません。元画像は同梱していません。
 
+別ポーズの全身イラストとして、バターの跳躍サンプルも用意しています。3枚の参照から耳・髪・衣装・小物の特徴を取り、背景を含めコードで描いています。
+
+```powershell
+bun run examples/butter-adventure.ts
+bun run examples/butter-adventure.ts --live http://localhost:8901
+```
+
+出力は `out/butter-adventure/`。`--live` は上と同じく、指定したサーバーの作品を置き換えて逐次描画します。
+
 ## JSON DSL v3
 
 ```json

@@ -35,10 +35,10 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference re
 逐次追記する場合（入力JSONに保存され画面へ自動反映される）:
 
 ```powershell
-curl.exe -Method POST http://localhost:8901/shapes -ContentType "application/json" -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
-curl.exe -Method POST http://localhost:8901/phase -ContentType "application/json" -Body '{"phase": "shadow"}'
-curl.exe -Method POST http://localhost:8901/bucket -ContentType "application/json" -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
-curl.exe -Method DELETE http://localhost:8901/shapes
+Invoke-RestMethod -Method POST http://localhost:8901/shapes -ContentType "application/json" -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
+Invoke-RestMethod -Method POST http://localhost:8901/phase -ContentType "application/json" -Body '{"phase": "shadow"}'
+Invoke-RestMethod -Method POST http://localhost:8901/bucket -ContentType "application/json" -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
+Invoke-RestMethod -Method DELETE http://localhost:8901/shapes
 ```
 
 作業順は線画→バケツ塗り→影→反射→背景で、追記は現在のフェーズのみ、進行は一段ずつ。消去するとフェーズは線画に戻る。
@@ -64,7 +64,7 @@ bun run test
 
 ## 復旧方針
 
-- 本ツールは入力JSONを読み取り、指定PNGを上書きするのみ。既存の入力は変更しない。
+- 描画CLIは入力JSONを読み取り、指定PNG/SVGへ出力する。プレビューの追記・塗り・消去・フェーズ進行は入力JSONを更新するため、必要なら作業前にコピーを保存する。
 - 出力を誤って上書きした場合は、入力JSONから再生成する。
 - 依存関係の更新で描画が変わった場合は、`bun.lock` を戻し `bun install` し直す。
-- プレビューのポートが使用中の場合は `--port` を変える（例: `--port 8902）。サーバは `127.0.0.1` のみで待ち受ける。
+- プレビューのポートが使用中の場合は `--port` を変える（例: `--port 8902`）。サーバは `127.0.0.1` のみで待ち受ける。

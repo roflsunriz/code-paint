@@ -73,27 +73,27 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 
 ```powershell
 # 1件追記（現在のフェーズの図形のみ受け付ける）
-curl.exe -Method POST http://localhost:8901/shapes `
+Invoke-RestMethod -Method POST http://localhost:8901/shapes `
   -ContentType "application/json" `
   -Body '{"shape": {"kind": "circle", "phase": "base", "cx": 220, "cy": 100, "r": 48, "fill": "#0000ff"}}'
 
 # 複数件追記
-curl.exe -Method POST http://localhost:8901/shapes `
+Invoke-RestMethod -Method POST http://localhost:8901/shapes `
   -ContentType "application/json" `
   -Body '{"shapes": [{...}, {...}]}'
 
 # フェーズ進行（一段ずつ、飛ばし・戻り不可）
-curl.exe -Method POST http://localhost:8901/phase `
+Invoke-RestMethod -Method POST http://localhost:8901/phase `
   -ContentType "application/json" `
   -Body '{"phase": "shadow"}'
 
 # バケツ塗り（base相のみ。flood fillをrect束へ展開して追記）
-curl.exe -Method POST http://localhost:8901/bucket `
+Invoke-RestMethod -Method POST http://localhost:8901/bucket `
   -ContentType "application/json" `
   -Body '{"x": 220, "y": 100, "fill": "#ff0000"}'
 
 # 全消去（キャンバス設定は保持、フェーズは線画に戻る）
-curl.exe -Method DELETE http://localhost:8901/shapes
+Invoke-RestMethod -Method DELETE http://localhost:8901/shapes
 ```
 
 追記は入力JSONファイルに保存されるため、プレビュー表示と `/document`・`/svg`・CLI出力がそのまま連動する。不正な図形・別フェーズの図形・飛ばしの進行・base相以外のバケツ塗りは400番台のJSONエラーで拒否され、既存の入力は変更されない。
@@ -108,7 +108,7 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901 --reference re
 - エージェントは `http://localhost:8901/reference` から画像バイトを取得できる。
 
 ```powershell
-curl.exe http://localhost:8901/reference -OutFile out/reference.png
+Invoke-WebRequest http://localhost:8901/reference -OutFile out/reference.png
 ```
 
 画像を見られないエージェントは `http://localhost:8901/svg` から同一内容のSVGテキストを取得できる（異常入力時は400番台のJSONエラー）。

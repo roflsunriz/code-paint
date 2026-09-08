@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- PowerShellで逐次描画の例を実行できるよう、curl.exeに混在していたPowerShell用引数をInvoke-RestMethod / Invoke-WebRequestへ修正し、プレビューが入力JSONを更新することを復旧手順に明記した。
 - 全テスト成功時も `bun test` が終了コード1で終わる問題を修正し、検証コマンドが正しく成功判定できるようにした（Bunでは `process.exitCode = undefined` で終了コードが戻らないため、失敗系テストの末尾で0に明示復帰）
 
 ### Changed

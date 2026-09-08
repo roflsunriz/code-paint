@@ -50,12 +50,14 @@ bun run src/preview.ts -- --input examples/hello.json --port 8901
 - 入力JSONを保存するとハッシュが変わり、約500ms間隔の取得で画面が自動更新される。
 - `POST /shapes` で1件追記すると図形件数が増え、画面の命令欄が末尾へ自動スクロールする。不正な図形・現在のフェーズと違う図形は400番台JSONで拒否される。
 - `POST /phase {"phase": "shadow"}` で一段ずつ進み、飛ばし・戻りは400番台JSONで拒否される。`POST /bucket {"x": 1, "y": 1, "fill": "#ff0000"}` はバケツ塗り相でのみrect束へ展開される。
-- `--reference` 付き起動では見本画像が表示され、`curl.exe http://localhost:8901/reference -OutFile out/reference.png` で取得できる。未設定時は404の案内JSONになる。
+- `--reference` 付き起動では見本画像が表示され、`Invoke-WebRequest http://localhost:8901/reference -OutFile out/reference.png` で取得できる。未設定時は404の案内JSONになる。
 - 命令欄（図形一覧・JSON）は固定高さでスクロールし、図形一覧は最新200件のみ表示される。
 - 不正なJSONや検証NGの入力でもサーバが落ちず、画面にエラーが表示される。
 - 代表的な複数ビューポート（例: 1920x1080、390x844）のヘッドレスChromeでスクリーンショットまたはDOM実測を行い、文字切れ・重なり・操作不能な要素がないか確認する。
 
 ## 未自動化の範囲
+
+2026-09-08: 初音ミクの逐次描画で、全5フェーズの追記、リファレンス表示、完成プレビュー（1000×1100・2222図形）、CLIのPNG/SVG出力を確認。lint・format・type-check・buildと60件のテストが成功した。成果物は `out/miku-wind/` に保存（Git管理外）。
 
 - 実ブラウザでの見た目比較は手動検証の対象とし、自動テストではサーバ経路と画面HTMLの含有確認まで行う。
 - 複数解像度・DPIでの厳密な画像比較は、必要になった時点で `tests/` へ追加する。

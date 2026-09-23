@@ -74,3 +74,9 @@ PNGの先頭8バイトは `137,80,78,71,13,10,26,10`。同一入力からのSVG�
 設定動画による再調整: 333秒の動画を28枚の一覧、15場面の原寸フレーム、6時刻の連続動作で確認。衣装・牙・反射点・しっぽ・パチンコを修正し、344図形で再出力した。原寸・3840×3840・顔880×520・衣装1210×1010を保存し、実ブラウザで動画の全身資料と並列表示を確認。lint・format・型検査・build・96テスト成功。分析は `docs/butter-video-study.md`、改訂PNGは `out/butter-adventure/butter-video-refined.png`。音声の逐語書き起こしは未実施。
 
 ライフセーバーの別作品: 8候補から1:50の笑顔を選び、別ソース `examples/butter-lifeguard.ts` に253図形で描いた。選択フレームとの重ね表示で顔・腕の位置を確認し、目元と口は3倍の局所画像で接続を確認。1000×1120、3000×3360、顔1125×600のPNGとSVG/JSONを `out/butter-lifeguard/` に保存。lint・format・型検査・build・96テストが成功。隠れたサンダルは1:10の同衣装を参考に補完した。
+
+## Dependabot 自動処理（2026-09-23）
+
+`.github/workflows/dependabot-automation.yml` を actionlint で検査し、PR 用 workflow 名（CI）と一致することを確認する。Dependabot の patch／minor かつ全 PR チェック成功の場合だけ取り込み、major・古い SHA・再失敗は残す。
+
+実際の Dependabot PR がまだない場合、動作経路は未検証として扱う。実 PR 発生後に自動化ジョブ、CI の再試行、マージ結果を確認する。

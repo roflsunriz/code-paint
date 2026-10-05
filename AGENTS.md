@@ -14,13 +14,14 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
    このファイルでは `code-paint` 固有の補足だけを記載する。
 
 ## 目的
+
 - HTML 2D Canvas上で、純粋にコードのみの利用でイラストを描けるソフトウェアを構築する
 - ブラシやレイヤーやバケツ塗りなどのツール策定と仕様の選定は効率性と検証性を優先して決める
 - コーディングエージェントがCLI経由でイラストを描き、そのフィードバックとして描画結果を受け取ってそのループを回すような使い方を想定
 
 ## 実装メモ（作業で確定した事項のみ）
 
-- 実行基盤はBun 1.x + strict TypeScript、ヘッドレス描画は `@napi-rs/canvas@1.0.8`。`bun run lint` / `format` / `type-check` / `build` / `test` を維持する。精密描画サンプルのTypeScriptもlintと型検査の対象。
+- 実行基盤はBun 1.x + strict TypeScript、ヘッドレス描画は `@napi-rs/canvas@1.0.10`。`bun run lint` / `format` / `type-check` / `build` / `test` を維持する。精密描画サンプルのTypeScriptもlintと型検査の対象。
 - CLIは `bun run src/cli.ts -- --input <JSON> --output <PNG> [--svg <SVG>] [--crop x,y,width,height] [--scale 倍率]`。crop/scaleはPNGだけに適用し、SVGは全体を保存する。出力寸法はPNGの実寸を表示する。
 - DSLはv3固定。v1/v2は `migrateToCurrentDocument` と移行CLIで明示変換する。旧図形の既知属性だけを拾い、旧版で無視されたhidden/transform/clip等を新機能として有効化しない。v2のphase表示rankをlayerに保存して見た目を保持する。
 - ユーザーの2026-09-08の方針変更により、phaseは作業ガイドになった。作業順強制・別工程の追加禁止は廃止し、自由に戻る・飛ばす・修正が可能。表示順は数値layer優先(省略時background=0,base=1,shadow=2,reflection=3,lineart=4)、同値は配列順。
@@ -43,3 +44,7 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - キャラクター模写では細部より先に顔の縦横比・頬の最大幅・頭と胴の比率を確認する。バターの下膨れは頬の色だけでなく輪郭を下側で広げて表現する。頭身変更時は首を基準に関連部品の変形を合成し、袖・手・持ち物の接続も確認する。
 - バターの通常衣装・動きの確認根拠は `docs/butter-video-study.md`。動画には別衣装も含まれるため混同しない。通常衣装は大きな尖った白襟なし、短パンと靴下の間に素足、黄色の靴下帯は3本、パチンコ付け根にリボン。細部は低解像度一覧だけで確定せず原寸フレームでも確認する。
 - out/dist/node_modules/subagentsはGit管理外。描画の生成元をexamplesへ保存し、PNG/SVG/JSONをoutへ出力する。PNGシグネチャは137,80,78,71,13,10,26,10。検証観点はverification.mdを参照。
+
+## 依存監査と互換性
+
+- 2026-10-05: typescript-eslint 8.71.1への更新で、未修正のbracesを持つfast-glob経路をtinyglobbyへ置き換えた。TypeScriptのpeer範囲は `<6.1.0` のため6.0.3を使用し、7系は対応が確認できるまで採用しない。ESLint 10では `@eslint/js` を直接依存として固定し、lint・型・96件の描画/編集/移行テストと監査を確認する。

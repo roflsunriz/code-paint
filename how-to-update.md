@@ -59,3 +59,7 @@ bun run src/cli.ts -- --input new-v3.json --output out/detail.png --crop 20,30,1
 設定を変えたときは `actionlint .github/workflows/dependabot-automation.yml` と実際の PR の Actions 結果を確認します。問題があれば呼び出し先の共通 workflow SHA を直前の検証済み値へ戻すコミットを push します。取り込まれた依存更新に問題があれば通常の revert コミットで復旧します。
 
 CI 完了より Dependabot の分類が遅れる場合は、`callback_workflow_file` が指す呼び出し側 workflow を `workflow_dispatch` し、同じ PR 番号・head SHA・全チェックを再確認する。呼び出し側のファイル名を変える際はこの入力も一緒に更新する。
+
+## 解析器の互換性と監査
+
+依存更新後は `bun audit` も実行します。TypeScriptの更新はtypescript-eslintの公式peer範囲を確認してください。解析器が対応していないメジャーを無理に採用しません。ESLintのflat configでimportする `@eslint/js` は直接依存として管理します。監査に失敗した場合は依存経路を確認し、更新か互換移行で解決してからPRを取り込みます。チェックを外して取り込みません。

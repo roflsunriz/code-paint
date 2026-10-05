@@ -18,17 +18,17 @@ bun run test
 
 主要な回帰観点:
 
-| 対象 | 確認内容 |
-| --- | --- |
-| DSL | 旧版拒否、欠落・無効なphase、有限数値・上限、色・gradient stops、曲線命令、ID重複、マスク・変形 |
-| 描画 | 曲線、線形／放射gradient、alpha、clip、transform、非表示、明示layer優先、安定順、PNG/SVGの内部画素対応 |
-| 局所出力 | キャンバス範囲・倍率・4096px上限、曲線からの再描画、CLI crop／scaleとSVG全体出力 |
-| 移行 | v1/v2の見た目保存、旧無視属性を有効化しない、旧形式の未知図形・gradient拒否 |
-| バケツ | RGBA連続領域、許容差、同色・領域外・上限、共通rendererと一致、工程を問わず実行 |
-| 編集 | 単発／複数追記、ID／グループPATCH・DELETE、任意項目null除去、全文検証、不正時入力不変 |
+| 対象       | 確認内容                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| DSL        | 旧版拒否、欠落・無効なphase、有限数値・上限、色・gradient stops、曲線命令、ID重複、マスク・変形        |
+| 描画       | 曲線、線形／放射gradient、alpha、clip、transform、非表示、明示layer優先、安定順、PNG/SVGの内部画素対応 |
+| 局所出力   | キャンバス範囲・倍率・4096px上限、曲線からの再描画、CLI crop／scaleとSVG全体出力                       |
+| 移行       | v1/v2の見た目保存、旧無視属性を有効化しない、旧形式の未知図形・gradient拒否                            |
+| バケツ     | RGBA連続領域、許容差、同色・領域外・上限、共通rendererと一致、工程を問わず実行                         |
+| 編集       | 単発／複数追記、ID／グループPATCH・DELETE、任意項目null除去、全文検証、不正時入力不変                  |
 | 保存・履歴 | concurrent追記の保持、atomic保存、undo/redo、新規編集でredo消去、外部保存で履歴reset、自動ID再利用防止 |
-| API | 参照200/404、SVG/PNG、別Origin書込拒否、未知query拒否、壊れたJSONからの復帰 |
-| 比較設定 | crop範囲・縦横比、設定復元、fit計算、手動zoomと高解像度backing、局所PNG URLと実APIの接続 |
+| API        | 参照200/404、SVG/PNG、別Origin書込拒否、未知query拒否、壊れたJSONからの復帰                            |
+| 比較設定   | crop範囲・縦横比、設定復元、fit計算、手動zoomと高解像度backing、局所PNG URLと実APIの接続               |
 
 ## 実ブラウザでの確認
 
@@ -90,3 +90,11 @@ PNGの先頭8バイトは `137,80,78,71,13,10,26,10`。同一入力からのSVG�
 - 既存の固有質問・入力例・必須条件を原文と照合。READMEのリンク・画像・コマンド・条件を確認し、裏付けがある誤記だけを訂正した。
 - 既存のCI、Dependabot、labeler、ライセンスのファイル内容は比較元から変更していない。
 - 製品のビルド・インストール・実機操作、GitHub上のフォーム表示、公開後CIは今回の静的検証に含めない。公開後に実際の受付表示と必要ラベルの適用を確認する。
+
+## 2026-10-05 依存監査の修復
+
+- 旧PR #1のheadとマージSHAのCIは依存監査で失敗していた。監査抑制やチェック変更は行わず、最新mainから依存を更新した。
+- `bun audit`: 脆弱性0件。`bun run lint`、`format`、`type-check`、`build`、`test`はすべて成功。96テスト・486アサーションが成功し、PNG/SVG、領域塗り、プレビュー編集、旧データ移行を検証した。
+- typescript-eslint 8.71.1はfast-globをtinyglobbyへ置き換えるため、修正版のないbraces 3.0.3の依存経路がなくなる。TypeScript 7はpeer範囲外なので6.0.3を使う。
+- 根拠: https://registry.npmjs.org/typescript-eslint/8.71.1 、https://registry.npmjs.org/%40typescript-eslint%2ftypescript-estree/8.71.1 。
+- Firefox等のユーザーブラウザやユーザー作品は操作していない。既存96件の自動検証を実行した。修復PRのCIは公開後に別途確認する。

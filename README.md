@@ -77,8 +77,15 @@ bun run examples/butter-lifeguard.ts --live http://localhost:8901
       "phase": "base",
       "d": "M 100 300 C 70 60 430 60 400 300 Q 250 240 100 300 Z",
       "fill": {
-        "kind": "linear", "x1": 100, "y1": 100, "x2": 400, "y2": 300,
-        "stops": [{ "offset": 0, "color": "#9edbd7" }, { "offset": 1, "color": "#3a8d9b" }]
+        "kind": "linear",
+        "x1": 100,
+        "y1": 100,
+        "x2": 400,
+        "y2": 300,
+        "stops": [
+          { "offset": 0, "color": "#9edbd7" },
+          { "offset": 1, "color": "#3a8d9b" }
+        ]
       },
       "stroke": "#2c6571",
       "strokeWidth": 2
@@ -89,13 +96,13 @@ bun run examples/butter-lifeguard.ts --live http://localhost:8901
 
 ### 図形と色
 
-| kind | 必須の形状指定 | 塗りと線 |
-| --- | --- | --- |
-| `rect` | `x`, `y`, `width`, `height` | `fill` |
-| `circle` | `cx`, `cy`, `r` | `fill` |
-| `line` | `x1`, `y1`, `x2`, `y2` | `stroke`, `strokeWidth` |
-| `path` | `points: [{x,y}, ...]` | `stroke`, `strokeWidth`, 任意の`fill` |
-| `curve` | `d` | `stroke`, `strokeWidth`, 任意の`fill` |
+| kind     | 必須の形状指定              | 塗りと線                              |
+| -------- | --------------------------- | ------------------------------------- |
+| `rect`   | `x`, `y`, `width`, `height` | `fill`                                |
+| `circle` | `cx`, `cy`, `r`             | `fill`                                |
+| `line`   | `x1`, `y1`, `x2`, `y2`      | `stroke`, `strokeWidth`               |
+| `path`   | `points: [{x,y}, ...]`      | `stroke`, `strokeWidth`, 任意の`fill` |
+| `curve`  | `d`                         | `stroke`, `strokeWidth`, 任意の`fill` |
 
 `curve.d` は絶対座標の `M`（移動）、`L`（直線）、`Q`（二次ベジェ）、`C`（三次ベジェ）、`Z`（閉じる）。複数の `M` で独立した線を描けます。曲線・pathの線を消すには `strokeWidth: 0`。線幅の強弱が必要な輪郭は、閉じた曲線の塗りで表現できます。
 
@@ -111,14 +118,14 @@ bun run examples/butter-lifeguard.ts --live http://localhost:8901
 
 全図形に `phase` が必須です。以下は省略できます。
 
-| 項目 | 意味 |
-| --- | --- |
-| `id` | 図形の識別子。同じドキュメント内で一意 |
-| `group` | 一括修正する部品名（例: `eye-left`） |
-| `layer` | 小さい値から大きい値へ描く。同値なら配列順 |
-| `opacity` | 0〜1の不透明度 |
-| `hidden` | `true` で書き出しを含め非表示 |
-| `clip` | `curve.d`と同じ形式のパス。塗り・線をその内側だけへ描く |
+| 項目        | 意味                                                         |
+| ----------- | ------------------------------------------------------------ |
+| `id`        | 図形の識別子。同じドキュメント内で一意                       |
+| `group`     | 一括修正する部品名（例: `eye-left`）                         |
+| `layer`     | 小さい値から大きい値へ描く。同値なら配列順                   |
+| `opacity`   | 0〜1の不透明度                                               |
+| `hidden`    | `true` で書き出しを含め非表示                                |
+| `clip`      | `curve.d`と同じ形式のパス。塗り・線をその内側だけへ描く      |
 | `transform` | `[a,b,c,d,e,f]` のアフィン変換。平行移動は `[1,0,0,1,dx,dy]` |
 
 `layer` 省略時は background=0, base=1, shadow=2, reflection=3, lineart=4。明示レイヤーもこの数値と一緒に並びます。`clip` は図形のローカル座標で指定し、グラデーション・線と一緒に `transform` が適用されます。`group` は図形の集合で、独立した合成レイヤーではありません。グループのopacityは各図形に適用され、transformは各図形の既存行列を置き換えます。
@@ -142,23 +149,23 @@ Invoke-RestMethod -Method POST http://localhost:8901/undo
 Invoke-RestMethod -Method POST http://localhost:8901/redo
 ```
 
-| メソッド・経路 | 操作 |
-| --- | --- |
-| `GET /document` | 検証結果・図形・入力原文・ハッシュ |
-| `PUT /document` | v3ドキュメント全体の置換 |
-| `POST /shapes` | `{"shape":{...}}` または `{"shapes":[...]}` の追記 |
-| `PATCH /shapes/:id` | 指定図形の部分更新 |
-| `DELETE /shapes/:id` | 指定図形の削除 |
-| `PATCH /groups/:group` | 同じグループの図形を一括更新 |
-| `DELETE /groups/:group` | グループの削除 |
-| `DELETE /shapes` | 全消去。キャンバスを保持し作業ガイドを線画へ戻す |
-| `POST /phase` | `{"phase":"shadow"}` など任意工程へ変更 |
-| `POST /bucket` | `{"x":100,"y":100,"fill":"#aabbcc"}` で連続領域を塗る |
-| `GET /history` | `canUndo`, `canRedo` を取得 |
-| `POST /undo`, `POST /redo` | 操作を戻す・やり直す |
-| `GET /svg` | 作品全体のSVG |
-| `GET /render.png` | 作品のPNG。`?x=100&y=100&width=200&height=200&scale=3` で局所拡大 |
-| `GET /reference` | 指定した参照画像（未設定・紛失時は404） |
+| メソッド・経路             | 操作                                                              |
+| -------------------------- | ----------------------------------------------------------------- |
+| `GET /document`            | 検証結果・図形・入力原文・ハッシュ                                |
+| `PUT /document`            | v3ドキュメント全体の置換                                          |
+| `POST /shapes`             | `{"shape":{...}}` または `{"shapes":[...]}` の追記                |
+| `PATCH /shapes/:id`        | 指定図形の部分更新                                                |
+| `DELETE /shapes/:id`       | 指定図形の削除                                                    |
+| `PATCH /groups/:group`     | 同じグループの図形を一括更新                                      |
+| `DELETE /groups/:group`    | グループの削除                                                    |
+| `DELETE /shapes`           | 全消去。キャンバスを保持し作業ガイドを線画へ戻す                  |
+| `POST /phase`              | `{"phase":"shadow"}` など任意工程へ変更                           |
+| `POST /bucket`             | `{"x":100,"y":100,"fill":"#aabbcc"}` で連続領域を塗る             |
+| `GET /history`             | `canUndo`, `canRedo` を取得                                       |
+| `POST /undo`, `POST /redo` | 操作を戻す・やり直す                                              |
+| `GET /svg`                 | 作品全体のSVG                                                     |
+| `GET /render.png`          | 作品のPNG。`?x=100&y=100&width=200&height=200&scale=3` で局所拡大 |
+| `GET /reference`           | 指定した参照画像（未設定・紛失時は404）                           |
 
 PATCHは変更する項目だけを送ります。`id` と `kind` は変更できません。任意項目は `null` で除去できます。図形を追加するときにIDを省略すると、APIがIDを付けます。その後の編集には `/document` で得たIDを使います。
 
@@ -179,22 +186,14 @@ bun run src/migrate.ts -- --input old-v2.json --output new-v3.json
 
 ## 開発者向け
 
-```powershell
-bun run lint
-bun run format
-bun run type-check
-bun run build
-bun run test
-```
-
-- `src/paint-document.ts`, `validate-document.ts`, `curve-path.ts`: DSLと入力検証
-- `src/render-document.ts`, `render-svg.ts`: PNG/SVG描画
-- `src/preview-server.ts`, `preview-store.ts`, `preview-render.ts`: 編集・履歴・保存・局所出力
-- `src/preview-page.ts`, `preview-client.ts`, `preview-view.ts`: 比較画面
-- `examples/miku-study.ts`: 編集可能な精密描画サンプル
-
-検証は [verification.md](verification.md)、更新と復旧は [how-to-update.md](how-to-update.md)、変更履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください。ソフトウェアのライセンスはMITです。
+この内容は [findings.md](findings.md#readme-1) にまとめています。
 
 ## 依存更新の自動処理
 
-Dependabot は対象の依存関係を毎週確認します。patch／minor 更新は PR のチェック（CI）が成功した後に自動で squash merge されます。CI の失敗ジョブは 1 回だけ再実行します。再失敗時は指定した lockfile を再生成し、CI を再実行します。major 更新は手動で確認します。
+この内容は [findings.md](findings.md#readme-2) にまとめています。
+
+## 開発時の参照先
+
+プロジェクト固有の構成・環境・調査知見は [findings.md](findings.md)、作業規範は [AGENTS.md](AGENTS.md)、検証記録は [verification.md](verification.md) を参照してください。
+
+ソフトウェアのライセンスはMITです。

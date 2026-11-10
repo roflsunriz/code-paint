@@ -186,14 +186,24 @@ bun run src/migrate.ts -- --input old-v2.json --output new-v3.json
 
 ## 開発者向け
 
-この内容は [findings.md](findings.md#readme-1) にまとめています。
+```powershell
+bun run lint
+bun run format
+bun run type-check
+bun run build
+bun run test
+```
+
+- `src/paint-document.ts`, `validate-document.ts`, `curve-path.ts`: DSLと入力検証
+- `src/render-document.ts`, `render-svg.ts`: PNG/SVG描画
+- `src/preview-server.ts`, `preview-store.ts`, `preview-render.ts`: 編集・履歴・保存・局所出力
+- `src/preview-page.ts`, `preview-client.ts`, `preview-view.ts`: 比較画面
+- `examples/miku-study.ts`: 編集可能な精密描画サンプル
+
+検証は [verification.md](verification.md)、更新と復旧は [how-to-update.md](how-to-update.md)、変更履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください。ソフトウェアのライセンスはMITです。
 
 ## 依存更新の自動処理
 
-この内容は [findings.md](findings.md#readme-2) にまとめています。
+更新PRの取り込みは、必要なCIチェックにすべて成功したものだけを対象に、毎月28日18:00（Asia/Tokyo）の月末処理で行います。
 
-## 開発時の参照先
-
-プロジェクト固有の構成・環境・調査知見は [findings.md](findings.md)、作業規範は [AGENTS.md](AGENTS.md)、検証記録は [verification.md](verification.md) を参照してください。
-
-ソフトウェアのライセンスはMITです。
+Dependabot は対象の依存関係を毎月28日00:00（Asia/Tokyo）に確認します。patch／minor 更新は PR のチェック（CI）が成功した後に自動で squash merge されます。CI の失敗ジョブは 1 回だけ再実行します。再失敗時は指定した lockfile を再生成し、CI を再実行します。major 更新も互換性を確認し、同じ月末処理で取り込みます。
